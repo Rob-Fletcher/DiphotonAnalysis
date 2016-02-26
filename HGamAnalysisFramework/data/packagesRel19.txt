@@ -1,0 +1,5 @@
+atlasoff/PhysicsAnalysis/ElectronPhotonID/ElectronPhotonSelectorTools/tags/ElectronPhotonSelectorTools-00-01-37-17
+atlasoff/Reconstruction/EventShapes/EventShapeTools/tags/EventShapeTools-00-01-09
+atlasoff/PhysicsAnalysis/ElectronPhotonID/IsolationCorrections/tags/IsolationCorrections-00-00-14
+atlasoff/PhysicsAnalysis/ElectronPhotonID/PhotonVertexSelection/tags/PhotonVertexSelection-00-00-12
+atlasoff/Event/xAOD/xAODTruth/tags/xAODTruth-00-01-12

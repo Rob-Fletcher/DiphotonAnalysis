@@ -1,0 +1,8 @@
+#!/bin/bash
+
+out=${1}
+shift
+in=${1//,/ }
+shift
+
+xAODMerge $out $in

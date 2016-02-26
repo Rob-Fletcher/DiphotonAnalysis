@@ -1,0 +1,5 @@
+atlasoff/PhysicsAnalysis/ElectronPhotonID/ElectronPhotonSelectorTools/tags/ElectronPhotonSelectorTools-00-02-57
+atlasoff/PhysicsAnalysis/ElectronPhotonID/PhotonVertexSelection/tags/PhotonVertexSelection-00-01-01
+atlasoff/Reconstruction/RecoTools/RecoToolInterfaces/tags/RecoToolInterfaces-00-04-00
+atlasoff/Reconstruction/RecoTools/IsolationTool/tags/IsolationTool-00-12-00
+atlasoff/PhysicsAnalysis/MCTruthClassifier/tags/MCTruthClassifier-00-01-41

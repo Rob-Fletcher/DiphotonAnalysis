@@ -1,0 +1,314 @@
+#!/bin/bash
+
+if test "$1" != "" && cd $1
+then
+    PKG=`pwd`
+else
+    echo package directory \"$1\" not found && exit 1
+    exit 1
+fi
+
+NAME=`basename $PKG`
+ALG=$2
+
+test "`echo $ALG | grep -E '^[_A-Za-z][_A-Za-z0-9]*$'`" == "" && echo algorithm name \"$ALG\" is not valid && exit 2
+#test "`echo $ALG | grep -E '^[_A-Za-z][_A-Za-z0-9]*$'`" == ""
+#EXISTS=`echo $ALG | grep -E '^[_A-Za-z][_A-Za-z0-9]*$'`
+#[ "$EXISTS" == "Blah" ] && echo "It exists!"
+#echo algorithm name \"$ALG\" is not valid && exit 2
+
+HEADER=$PKG/$NAME/$ALG.h
+mkdir -p `dirname $HEADER`
+test -e $HEADER && echo header $HEADER already exists && exit 3
+SOURCE=$PKG/Root/$ALG.cxx
+mkdir -p `dirname $SOURCE`
+test -e $SOURCE && echo source $SOURCE already exists && exit 4
+LINKDEF=$PKG/Root/LinkDef.h
+test \! -e $LINKDEF && echo LinkDef file $LINKDEF does not exist && exit 5
+MAKEFILE=$PKG/cmt/Makefile.RootCore
+test \! -e $MAKEFILE && echo makefile $MAKEFILE does not exist && exit 6
+EXE=$PKG/util/run$ALG.cxx
+mkdir -p `dirname $EXE`
+test -e $EXE && echo executable $EXE already exists && exit 7
+CONFIG=$PKG/data/$ALG.cfg
+mkdir -p `dirname $CONFIG`
+test -e $CONFIG && echo config file $EXE already exists && exit 8
+
+
+
+echo '#ifndef '$NAME'_'$ALG'_H' >>$HEADER
+echo '#define '$NAME'_'$ALG'_H' >>$HEADER
+echo '' >>$HEADER
+echo '#include "HGamAnalysisFramework/HgammaAnalysis.h"' >>$HEADER
+echo '' >>$HEADER
+echo 'class '$ALG' : public HgammaAnalysis' >>$HEADER
+echo '{' >>$HEADER
+echo '  // put your configuration variables here as public variables.' >>$HEADER
+echo '  // that way they can be set directly from CINT and python.' >>$HEADER
+echo 'public:' >>$HEADER
+echo '  // float cutValue;' >>$HEADER
+echo '' >>$HEADER
+echo '' >>$HEADER
+echo '' >>$HEADER
+echo '  // variables that don'\''t get filled at submission time should be' >>$HEADER
+echo '  // protected from being send from the submission node to the worker' >>$HEADER
+echo '  // node (done by the //!)' >>$HEADER
+echo 'private:' >>$HEADER
+echo '  // Tree *myTree; //!' >>$HEADER
+echo '  // TH1 *myHist; //!' >>$HEADER
+echo '' >>$HEADER
+echo '' >>$HEADER
+echo '' >>$HEADER
+echo 'public:' >>$HEADER
+echo '  // this is a standard constructor' >>$HEADER
+echo '  '$ALG'() { }' >>$HEADER
+echo '  '$ALG'(const char *name);' >>$HEADER
+echo '  virtual ~'$ALG'();' >>$HEADER
+echo '' >>$HEADER
+echo '  // these are the functions inherited from HgammaAnalysis' >>$HEADER
+echo '  virtual EL::StatusCode createOutput();' >>$HEADER
+echo '  virtual EL::StatusCode execute();' >>$HEADER
+echo '' >>$HEADER
+test "$3" == "--all" && echo '  // these are all the other functions inherited from the Algorithm' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode setupJob (EL::Job& job);' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode fileExecute ();' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode histInitialize ();' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode changeInput (bool firstFile);' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode initialize ();' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode postExecute ();' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode finalize ();' >>$HEADER
+test "$3" == "--all" && echo '  virtual EL::StatusCode histFinalize ();' >>$HEADER
+echo '' >>$HEADER
+echo '  // this is needed to distribute the algorithm to the workers' >>$HEADER
+echo '  ClassDef('$ALG', 1);' >>$HEADER
+echo '};' >>$HEADER
+echo '' >>$HEADER
+echo '#endif // '$NAME'_'$ALG'_H' >>$HEADER
+
+
+
+echo '#include "'$NAME'/'$ALG'.h"' >>$SOURCE
+echo '#include "HGamAnalysisFramework/HgammaIncludes.h"' >>$SOURCE
+echo '' >>$SOURCE
+echo '// this is needed to distribute the algorithm to the workers' >>$SOURCE
+echo 'ClassImp('$ALG')' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo $ALG'::'$ALG'(const char *name)' >>$SOURCE
+echo ': HgammaAnalysis(name)' >>$SOURCE
+echo '{' >>$SOURCE
+echo '  // Here you put any code for the base initialization of variables,' >>$SOURCE
+echo '  // e.g. initialize all pointers to 0.  Note that you should only put' >>$SOURCE
+echo '  // the most basic initialization here, since this method will be' >>$SOURCE
+echo '  // called on both the submission and the worker node.  Most of your' >>$SOURCE
+echo '  // initialization code will go into histInitialize() and' >>$SOURCE
+echo '  // initialize().' >>$SOURCE
+echo '}' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo $ALG'::~'$ALG'()' >>$SOURCE
+echo '{' >>$SOURCE
+echo '  // Here you delete any memory you allocated during your analysis.' >>$SOURCE
+echo '}' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo 'EL::StatusCode '$ALG'::createOutput()' >>$SOURCE
+echo '{' >>$SOURCE
+echo '  // Here you setup the histograms needed for you analysis. This method' >>$SOURCE
+echo '  // gets called after the Handlers are initialized, so that the systematic' >>$SOURCE
+echo '  // registry is already filled.' >>$SOURCE
+echo '' >>$SOURCE
+echo '  //histoStore()->createTH1F("m_yy", 60, 110, 140);' >>$SOURCE
+echo '' >>$SOURCE
+echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+echo '}' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo '' >>$SOURCE
+echo 'EL::StatusCode '$ALG'::execute()' >>$SOURCE
+echo '{' >>$SOURCE
+echo '  // Here you do everything that needs to be done on every single' >>$SOURCE
+echo '  // events, e.g. read input variables, apply cuts, and fill' >>$SOURCE
+echo '  // histograms and trees.  This is where most of your actual analysis' >>$SOURCE
+echo '  // code will go.' >>$SOURCE
+echo '' >>$SOURCE
+echo '  // Important to keep this, so that internal tools / event variables' >>$SOURCE
+echo '  // are filled properly.' >>$SOURCE
+echo '  HgammaAnalysis::execute();' >>$SOURCE
+echo '' >>$SOURCE
+echo '  //xAOD::PhotonContainer photons = photonHandler()->getCorrectedContainer();' >>$SOURCE
+echo '  //if (photons.size() < 2) return EL::StatusCode::SUCCESS;' >>$SOURCE
+echo '  //TLorentzVector h = photons[0]->p4() + photons[1]->p4();' >>$SOURCE
+echo '  //histoStore()->fillTH1F("m_yy", h.M()/HG::GeV);' >>$SOURCE
+echo '' >>$SOURCE
+echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::setupJob (EL::Job& job)' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::setupJob(job); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::fileExecute ()' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  // Here you do everything that needs to be done exactly once for every' >>$SOURCE
+test "$3" == "--all" && echo '  // single file, e.g. collect a list of all lumi-blocks processed' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::fileExecute(); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::histInitialize ()' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  // Here you do everything that needs to be done at the very' >>$SOURCE
+test "$3" == "--all" && echo '  // beginning on each worker node, e.g. create histograms and output' >>$SOURCE
+test "$3" == "--all" && echo '  // trees.  This method gets called before any input files are' >>$SOURCE
+test "$3" == "--all" && echo '  // connected.' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::histInitialize(); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::changeInput (bool firstFile)' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  // Here you do everything you need to do when we change input files,' >>$SOURCE
+test "$3" == "--all" && echo '  // e.g. resetting branch addresses on trees.  If you are using' >>$SOURCE
+test "$3" == "--all" && echo '  // D3PDReader or a similar service this method is not needed.' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::changeInput(firstFile); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::initialize ()' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  // Here you do everything that you need to do after the first input' >>$SOURCE
+test "$3" == "--all" && echo '  // file has been connected and before the first event is processed,' >>$SOURCE
+test "$3" == "--all" && echo '  // e.g. create additional histograms based on which variables are' >>$SOURCE
+test "$3" == "--all" && echo '  // available in the input files.  You can also create all of your' >>$SOURCE
+test "$3" == "--all" && echo '  // histograms and trees in here, but be aware that this method' >>$SOURCE
+test "$3" == "--all" && echo '  // do not get called if no events are processed.  So any objects' >>$SOURCE
+test "$3" == "--all" && echo '  // you create here will not be available in the output if you have no' >>$SOURCE
+test "$3" == "--all" && echo '  // input events.' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::initialize(); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::postExecute ()' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  // Here you do everything that needs to be done after the main event' >>$SOURCE
+test "$3" == "--all" && echo '  // processing.  This is typically very rare, particularly in user' >>$SOURCE
+test "$3" == "--all" && echo '  // code.  It is mainly used in implementing the NTupleSvc.' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::postExecute(); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::finalize ()' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  // This method is the mirror image of initialize(), meaning it gets' >>$SOURCE
+test "$3" == "--all" && echo '  // called after the last event has been processed on the worker node' >>$SOURCE
+test "$3" == "--all" && echo '  // and allows you to finish up any objects you created in' >>$SOURCE
+test "$3" == "--all" && echo '  // initialize() before they are written to disk.  This is actually' >>$SOURCE
+test "$3" == "--all" && echo '  // fairly rare, since this happens separately for each worker node.' >>$SOURCE
+test "$3" == "--all" && echo '  // Most of the time you want to do your post-processing on the' >>$SOURCE
+test "$3" == "--all" && echo '  // submission node after all your histogram outputs have been' >>$SOURCE
+test "$3" == "--all" && echo '  // merged.  This is different from histFinalize() in that it only' >>$SOURCE
+test "$3" == "--all" && echo '  // gets called on worker nodes that processed input events.' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::finalize(); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+test "$3" == "--all" && echo 'EL::StatusCode '$ALG'::histFinalize ()' >>$SOURCE
+test "$3" == "--all" && echo '{' >>$SOURCE
+test "$3" == "--all" && echo '  // This method is the mirror image of histInitialize(), meaning it' >>$SOURCE
+test "$3" == "--all" && echo '  // gets called after the last event has been processed on the worker' >>$SOURCE
+test "$3" == "--all" && echo '  // node and allows you to finish up any objects you created in' >>$SOURCE
+test "$3" == "--all" && echo '  // histInitialize() before they are written to disk.  This is' >>$SOURCE
+test "$3" == "--all" && echo '  // actually fairly rare, since this happens separately for each' >>$SOURCE
+test "$3" == "--all" && echo '  // worker node.  Most of the time you want to do your' >>$SOURCE
+test "$3" == "--all" && echo '  // post-processing on the submission node after all your histogram' >>$SOURCE
+test "$3" == "--all" && echo '  // outputs have been merged.  This is different from finalize() in' >>$SOURCE
+test "$3" == "--all" && echo '  // that it gets called on all worker nodes regardless of whether' >>$SOURCE
+test "$3" == "--all" && echo '  // they processed input events.' >>$SOURCE
+test "$3" == "--all" && echo '  HgammaAnalysis::histFinalize(); // keep this line!' >>$SOURCE
+test "$3" == "--all" && echo '  return EL::StatusCode::SUCCESS;' >>$SOURCE
+test "$3" == "--all" && echo '}' >>$SOURCE
+test "$3" == "--all" && echo '' >>$SOURCE
+
+
+
+echo '#include "'$NAME'/'$ALG'.h"' >>$EXE
+echo '#include "HGamAnalysisFramework/RunUtils.h"' >>$EXE
+echo '' >>$EXE
+echo 'int main(int argc, char *argv[])' >>$EXE
+echo '{' >>$EXE
+echo '  // Set up the job for xAOD access' >>$EXE
+echo '  xAOD::Init().ignore();' >>$EXE
+echo '' >>$EXE
+echo '  // Create our algorithm' >>$EXE
+echo '  '$ALG' *alg = new '$ALG'("'$ALG'");' >>$EXE
+echo '' >>$EXE
+echo '  // Use helper to start the job' >>$EXE
+echo '  HG::runJob(alg, argc, argv);' >>$EXE
+echo '' >>$EXE
+echo '  return 0;' >>$EXE
+echo '}' >>$EXE
+
+
+
+echo '########"' >>$CONFIG
+echo '#' >>$CONFIG
+echo '# Configuration file for '$PKG'/'$ALG' analysis' >>$CONFIG
+echo '#' >>$CONFIG
+echo '########"' >>$CONFIG
+echo '' >>$CONFIG
+echo '' >>$CONFIG
+echo '##################################' >>$CONFIG
+echo '# Job steering setup' >>$CONFIG
+echo '' >>$CONFIG
+echo 'OutputDir:        '$ALG'_DATE' >>$CONFIG
+echo 'SampleName:       sample' >>$CONFIG
+echo 'InputFileList:    input_data.txt' >>$CONFIG
+[ "$ROOTCORE_RELEASE_SERIES" == "21" ] \
+  && echo 'BaseConfig:       HGamAnalysisFramework/HGamDC14.config' >>$CONFIG
+[ "$ROOTCORE_RELEASE_SERIES" == "23" ] \
+  && echo 'BaseConfig:       HGamAnalysisFramework/HGamRel20.config' >>$CONFIG
+echo '' >>$CONFIG
+echo '' >>$CONFIG
+echo '##################################' >>$CONFIG
+echo '# HgammaAnalysis setup' >>$CONFIG
+echo '' >>$CONFIG
+echo '' >>$CONFIG
+echo '##################################' >>$CONFIG
+echo '# Photon calibration, smearing and selection settings' >>$CONFIG
+echo '' >>$CONFIG
+echo '' >>$CONFIG
+echo '##################################' >>$CONFIG
+echo '# Jet calibration, smearing and selection settings' >>$CONFIG
+echo '' >>$CONFIG
+echo '' >>$CONFIG
+echo '##################################' >>$CONFIG
+echo '# What to save in the MxAOD' >>$CONFIG
+echo '' >>$CONFIG
+echo '' >>$CONFIG
+
+
+
+field='HGamAnalysisFramework'
+test "$NAME" == "HGamAnalysisFramework" && field=''
+for pkg in `$ROOTCOREDIR/scripts/get_field.sh $MAKEFILE PACKAGE_DEP`
+do
+    test "$pkg" != "HGamAnalysisFramework" && field="$field $pkg"
+done
+$ROOTCOREDIR/scripts/set_field.sh $MAKEFILE PACKAGE_DEP "$field"
+
+
+
+echo '#include <'$NAME/$ALG'.h>' >$LINKDEF-
+echo '' >>$LINKDEF-
+cat $LINKDEF >>$LINKDEF-
+echo '' >>$LINKDEF-
+echo '#ifdef __CINT__' >>$LINKDEF-
+echo '#pragma link C++ class '$ALG'+;' >>$LINKDEF-
+echo '#endif' >>$LINKDEF-
+mv -f $LINKDEF- $LINKDEF

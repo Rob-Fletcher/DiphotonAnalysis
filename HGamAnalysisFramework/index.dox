@@ -1,0 +1,20 @@
+/*! \mainpage Hgamma xAOD AnalysisFramework
+ *
+ * \section intro_sec Introduction
+ * \htmlonly
+ * On these pages you will find the documentation of the HGamAnalysisFramework package.<br>
+ * This package is developed within the HGam Higgs subgroup that focus on analyses with
+ * diphoton and Z+&gamma; final states.
+ * <p>Useful information
+ * <ul>
+ *  <li><a href="https://twiki.cern.ch/twiki/bin/view/AtlasProtected/HggDerivationAnalysisFramework">HGam derivations and analysis framework twiki</a>
+ *  <li>Tutorial explaining how to use the framework:
+ *      <a href="https://twiki.cern.ch/twiki/bin/view/AtlasProtected/HGamAnalysisFrameworkTutorial">The twiki page</a>
+ *      and the <a href="https://indico.cern.ch/event/376362/">agenda</a>.
+ *  <li><a href="https://indico.cern.ch/category/4162/">Informal Higgs indico page where the Monday Hgamma xAOD informal meeting agendas are</a>
+ *  <li><a href="https://twiki.cern.ch/twiki/bin/viewauth/AtlasProtected/HiggsGamGam">HGam main twiki</a>
+ *  <li>Trunk version of code in SVN of the: <a href="https://svnweb.cern.ch/trac/atlasoff/browser/PhysicsAnalysis/HiggsPhys/Run2/HGamma/xAOD/HGamAnalysisFramework/trunk">HGamAnalysisFramework</a> and the <a href="https://svnweb.cern.ch/trac/atlasoff/browser/PhysicsAnalysis/HiggsPhys/Run2/HGamma/xAOD/HgammaSandbox/trunk">HgammaSandbox</a>
+ * </ul>
+ * \endhtmlonly
+ */
+

@@ -1,0 +1,9 @@
+### Objects
+*.o
+*.pyc
+
+## SVN
+.svn
+
+## Data files
+*.root
