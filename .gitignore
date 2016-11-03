@@ -1,9 +1,17 @@
 ### Objects
 *.o
 *.pyc
+*.d
+*.so
+*.pcm
 
 ## SVN
 .svn
 
 ## Data files
 *.root
+
+#Images
+*.png
+*.jpg
+*.pdf
