@@ -3,11 +3,14 @@ import os
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF,Matern, ConstantKernel as C
-from root_numpy import *
-from matplotlib import pyplot as plt
+#from root_numpy import *
+#from matplotlib import pyplot as plt
 import argparse
+import sys
+sys.path.append('../GPBackgrounds')
 from RootToNp import *
 from SignalModel import *
+from MYYKernel import *
 
 
 def run(args, mass, winLow, winHigh):
@@ -15,7 +18,7 @@ def run(args, mass, winLow, winHigh):
     bkghist_template = f.Get('hmgg_c0')
     bkghist_template.Rebin(8)
 
-    stats = 60000
+    stats = 100000
     seed = 10
 
     bkghist = toyModel(bkghist_template, stats, seed)
@@ -56,16 +59,18 @@ def run(args, mass, winLow, winHigh):
     x = GPh.getXArr()
 
     #kernel = C(800.0, (1e-3, 1e3)) * RBF(100.0, (1e-3, 1e3)) #squared exponential kernel
-    kernel = C(10.0, (1e-3, 1e15)) * RBF(np.sqrt(2)*(7**2), (np.sqrt(2)*(8**2), 1e6)) #squared exponential kernel
-    #kernel = C(10.0, (1e-3, 1e6)) * Matern(22.0, (40, 1e6), 2.0)
+    #kernel = C(10.0, (1e-3, 1e15)) * RBF(48, (1,1e5 )) #squared exponential kernel
+    #kernel = C((2.98e4)**2, (1e-3, 1e15)) * RBF(72, (1,1e5 )) #squared exponential kernel
+    kernel = C(1000.0, (1e-3, 1e15)) * FallExp(1.0, (1e-5, 1e2), 1.0, (1e-3,1e15)) * Gibbs(1.0, (1e-3, 1e5), 1.0, (1e-3,1e5))
+    #kernel = C((3.74e4)**2, (1e-3, 1e15)) * FallExp(9.38e-5, (1e-10 , 1e2), 3.66e12, (1e-3,1e15)) * Gibbs(10.5, (1e-3, 1e5), 0.0109, (1e-3,1e5))
+    #kernel = C(10.0, (1e-3, 1e6)) * Gibbs(1.0, (1e-3, 1e5), 1.0, (1e-3,1e5))
+    #kernel = FallExp(1.0,(1e-5,1e2), 1.0, (1e-3, 1e15))* RBF(50., (1e-3,1e5 )) #squared exponential kernel
 
 
-    print "dy[5] =",dy[5]
-    print "err =", bkghist.GetBinError(5), "Original =", bkghist_template.GetBinError(5)
     gp = GaussianProcessRegressor(kernel=kernel
-                                    #,optimizer=None
+                                    #,optimizer='fmin'
                                     ,alpha=dy**2
-                                    ,n_restarts_optimizer=15
+                                    ,n_restarts_optimizer=9
                                     )
 
     gp.fit(X,y)
@@ -94,7 +99,11 @@ def run(args, mass, winLow, winHigh):
     else:
         outfile = TFile('out.root','RECREATE')
         #outhist = arrayToHisto('GP Fit', 105, 160, y_pred, sigma)
-        outhist = GPh.getHisto(y_pred, 1.96*sigma, 'GP Fit')
+        outhist = None
+        if args.CL is '95':
+            outhist = GPh.getHisto(y_pred, 1.96*sigma, 'GP Fit')
+        if args.CL is '68':
+            outhist = GPh.getHisto(y_pred, sigma, 'GP Fit')
         if args.noWindow:
             bkgWindow = GPh.getHisto(y, dy, 'Full Background')
         else:
@@ -125,6 +134,20 @@ def run(args, mass, winLow, winHigh):
         bkghist_template.SetTitle(str(gp.kernel_)+" nToys: "+str(stats))
         print "Bin 24:  {0} : {1} : {2}".format((outhist.GetBinContent(24)-outhist.GetBinError(24)), bkghist_template.GetBinContent(24), (outhist.GetBinContent(24)+outhist.GetBinError(24))    )
 
+        ####### Poly2 fit
+        #canv4 = TCanvas('c4','c4')
+        expPol_func = TF1("expPol","[0]*exp((x-100)/100 * ([1] + [2]*(x-100)/100))",105,160)
+        expPol_func.SetParameters(0,0,0)
+        expPol_func.SetParLimits(1,-10.,10.)
+        expPol_func.SetParLimits(2,-10.,10.)
+        bkgWindow.Fit("expPol","","",105,160)
+        expFitResult = bkgWindow.GetFunction("expPol")
+        expPolHist = expFitResult.GetHistogram()
+        print expPolHist.GetNbinsX()
+        #expPolHist.Divide(outhist)
+        #expPolHist.Draw()
+        #canv4.Print(args.tag+'/expPol_GP_ratio.pdf')
+
         bkghist_template.Draw('')
         bkgWindow.Draw('same')
         outhist.Draw('histsame')
@@ -143,17 +166,46 @@ def run(args, mass, winLow, winHigh):
         pad2.Draw()
         pad2.cd()
 
-        h3 = bkghist_template.Clone("h3")
+
+        h3 = outhist.Clone("h3")
         h3.SetLineColor(kBlack)
         h3.SetMinimum(0.95)
         h3.SetMaximum(1.05)
         h3.Sumw2()
         h3.SetStats(0)
-        h3.Divide(outhist)
+        h3.Divide(bkghist_template)
         h3.SetMarkerColor(kBlack)
         h3.SetMarkerStyle(20)
-        h3.SetMarkerSize(0.5)
-        h3.Draw("ep")
+        h3.SetMarkerSize(0.8)
+        h3.Draw("epsame")
+
+        h4 = bkghist_template.Clone("h4")
+        h4.SetLineColor(kRed)
+        h4.SetMinimum(0.95)
+        h4.SetMaximum(1.05)
+        h4.Sumw2()
+        h4.SetStats(0)
+        h4.Divide(expFitResult)
+        denom = h4.Clone("denom")
+        h4.Divide(denom)
+        h4.Divide(denom)
+        h4.SetMarkerColor(kRed)
+        h4.SetMarkerStyle(20)
+        h4.SetMarkerSize(0.8)
+        h4.Draw("epsame")
+
+        h5 = bkgWindow.Clone('h5')
+        h5.SetLineColor(kBlue)
+        h5.SetMinimum(0.95)
+        h5.SetMaximum(1.05)
+        h5.Sumw2()
+        h5.SetStats(0)
+        h5.Divide(bkghist_template)
+        h5.SetMarkerColor(kBlue)
+        h5.SetMarkerStyle(20)
+        h5.SetMarkerSize(0.8)
+        h5.Draw("epsame")
+
 
         line = TLine(105,1,160,1)
         line.Draw('same')
@@ -178,7 +230,7 @@ def run(args, mass, winLow, winHigh):
         h3.SetTitle(""); # Remove the ratio title
 
         # Y axis ratio plot settings
-        h3.GetYaxis().SetTitle("data/fit ");
+        h3.GetYaxis().SetTitle("fit/data    ");
         h3.GetYaxis().SetNdivisions(505);
         h3.GetYaxis().SetTitleSize(20);
         h3.GetYaxis().SetTitleFont(43);
@@ -198,7 +250,7 @@ def run(args, mass, winLow, winHigh):
         canv.Write()
         #canv.Print(winLow+'_'+winHigh+'_GPFit.pdf')
         #canv.Print(args.tag+'/GPFit_'+str(winLow)+'_'+str(winHigh)+'.pdf')
-        canv.Print(args.tag+'/GPFit_'+str(seed)+'.pdf')
+        canv.Print(args.tag+'/GPFit_'+str(seed)+'_'+args.CL+'CL.pdf')
 
         if args.doSig:
             ###  Plot signal stuff
@@ -251,18 +303,6 @@ def run(args, mass, winLow, winHigh):
         #canv.Print(args.tag+'/fitResult.pdf')
         #print fitResult.Integral(120,130)
 
-        """
-        canv4 = TCanvas('c4','c4')
-        expPol_func = TF1("expPol","[0]*exp([1]+[2]*x)",105,160)
-        expPol_func.SetParameters(50,-100,-100)
-        bkghist.Fit("expPol","","",105,160)
-        expFitResult = bkghist.GetFunction("expPol")
-        expPolHist = expFitResult.GetHistogram()
-        print expPolHist.GetNbinsX()
-        #expPolHist.Divide(outhist)
-        expPolHist.Draw()
-        canv4.Print(args.tag+'/expPol_GP_ratio.pdf')
-        """
 
         """
         canv4 = TCanvas('c4','c4')
@@ -286,7 +326,8 @@ if __name__ == '__main__':
     parser.add_argument("--noWindow","-w", action='store_true', help="Dont do the window cut. Train on whole sample.")
 
     args = parser.parse_args()
-
+    #args.CL = '95'
+    args.CL = '68'
     if not os.path.exists(args.tag):
         os.makedirs(args.tag)
 

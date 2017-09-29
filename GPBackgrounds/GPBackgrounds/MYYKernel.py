@@ -1,10 +1,10 @@
 from sklearn.gaussian_process.kernels import *
-from scipy.spacial.distance import squareform
+from scipy.spatial.distance import squareform
 
 def _convert_to_double(X):
     return np.ascontiguousarray(X, dtype=np.double)
 
-class Gibbs(kernel):
+class Gibbs(Kernel):
     """Gibbs kernel
 
     sqrt( (2*l(x)l(x')) / (l(x)**2 + l(x')**2 ) * exp( -(x-x')**2 / (l(x)**2 + l(x')**2) )
@@ -23,11 +23,11 @@ class Gibbs(kernel):
 
     @property
     def hyperparameter_b(self):
-        return(k.Hyperparamter("b","numeric",self.b_bounds))
+        return(Hyperparameter("b","numeric",self.b_bounds))
 
     @property
     def hyperparameter_c(self):
-        return(Hyperparamter("c","numeric",self.c_bounds))
+        return(Hyperparameter("c","numeric",self.c_bounds))
 
 
 
@@ -35,9 +35,6 @@ class Gibbs(kernel):
         """Retrn K(X,Y)
 
         """
-        if not Y==None:
-            raise("Y should be none.")
-
         def l(x):  #Helper function
             return self.b * x + self.c
 
@@ -47,36 +44,75 @@ class Gibbs(kernel):
         if len(s) != 2:
             raise ValueError('A 2-dimensional array must be passed.')
 
-        m, n = s
-        K = np.zeros((m * (m - 1)) // 2, dtype=np.double)
-        X = _convert_to_double(X)
-        t = 0
-        for i in xrange(0, m - 1):
-            for j in xrange(i + 1, m):
-                xi_xj = X[i] - X[j]
-                li = l(X[i])  # b*x+c
-                lj = l(X[j])
-                li2_lj2 = np.dot(li,li) + np.dot(lj,lj)  # l(x)^2 + l(x')^2
-                coeff = np.sqrt(2*li*lj/(li2_lj2))
-                K[t] = coeff * np.exp(-1*np.dot(xi_xj, xi_xj) / li2_lj2 )
-                t = t + 1
+        if Y is None:
+            m, n = s
+            K = np.zeros((m * (m - 1)) // 2, dtype=np.double)
+            X = _convert_to_double(X)
+            t = 0
+            for i in xrange(0, m - 1):
+                for j in xrange(i + 1, m):
+                    xi_xj = X[i] - X[j]
+                    li = l(X[i])  # b*x+c
+                    lj = l(X[j])
+                    li2_lj2 = np.dot(li,li) + np.dot(lj,lj)  # l(x)^2 + l(x')^2
+                    coeff = np.sqrt(2*li*lj/(li2_lj2))
+                    K[t] = coeff * np.exp(-1*(xi_xj*xi_xj) / li2_lj2 )
+                    t = t + 1
 
-        K = squareform(K)
-        np.fill_diagonal(K,1)
+            K = squareform(K)
+            np.fill_diagonal(K,1)
 
-        if eval_gradient:
-            raise("eval_gradient not implemented yet.")
+            if eval_gradient:
+                # approximate gradient numerically
+                def f(theta):  # helper function
+                    return self.clone_with_theta(theta)(X, Y)
+                return K, _approx_fprime(self.theta, f, 1e-10)
+            else:
+                return K
+
         else:
-            return K
+            mx, nx = s
+            sy = Y.shape
+            my, ny = sy
+            K = np.zeros((mx, my), dtype=np.double)
+            X = _convert_to_double(X)
+            Y = _convert_to_double(Y)
+            t = 0
+            for i in xrange(0, mx):
+                for j in xrange(0, my):
+                    xi_yj = X[i] - Y[j]
+                    li = l(X[i])  # b*x+c
+                    lj = l(Y[j])
+                    li2_lj2 = li*li + lj*lj  # l(x)^2 + l(x')^2
+                    coeff = np.sqrt(2*li*lj/(li2_lj2))
+                    K[i][j] = coeff * np.exp(-1*(xi_yj* xi_yj) / li2_lj2 )
+                    t = t + 1
+
+            #K = squareform(K)
+            #np.fill_diagonal(K,1)
+
+            if eval_gradient:
+                # approximate gradient numerically
+                def f(theta):  # helper function
+                    return self.clone_with_theta(theta)(X, Y)
+                return K, _approx_fprime(self.theta, f, 1e-10)
+            else:
+                return K
 
         pass # __call__
+
+    def diag(self, X):
+        return np.diag(self(X))
+
+    def is_stationary(self):
+        return False
 
     def __repr__(self):
         return "{0}(b={1:.3g}, c={2:.3g})".format(
                 self.__class__.__name__, self.b, self.c)
 
 
-class fallExp(kernel):
+class FallExp(Kernel):
     """Falling exponential kernel
 
     exp( (d - (x+x'))/(2*a) )
@@ -90,12 +126,11 @@ class fallExp(kernel):
 
     @property
     def hyperparameter_d(self):
-        return(k.Hyperparamter("d","numeric",self.d_bounds))
+        return(Hyperparameter("d","numeric",self.d_bounds))
 
     @property
     def hyperparameter_a(self):
-        return(Hyperparamter("a","numeric",self.a_bounds))
-
+        return(Hyperparameter("a","numeric",self.a_bounds))
 
 
     def __call__(self, X, Y=None, eval_gradient=False):
@@ -108,25 +143,60 @@ class fallExp(kernel):
         if len(s) != 2:
             raise ValueError('A 2-dimensional array must be passed.')
 
-        m, n = s
-        K = np.zeros((m * (m - 1)) // 2, dtype=np.double)
-        X = _convert_to_double(X)
-        t = 0
-        for i in xrange(0, m - 1):
-            for j in xrange(i + 1, m):
-                xi_xj = X[i] + X[j]
-                K[t] = np.exp( (self.d - xi_xj) / (2*self.a) )
-                t = t + 1
+        if Y is None:
+            m, n = s
+            K = np.zeros((m * (m - 1)) // 2, dtype=np.double)
+            X = _convert_to_double(X)
+            t = 0
+            for i in xrange(0, m - 1):
+                for j in xrange(i + 1, m):
+                    xi_xj = np.dtype('d')
+                    xi_xj = X[i] + X[j]
+                    K[t] = np.exp( (self.d - xi_xj) / (2*self.a) )
+                    t = t + 1
 
-        K = squareform(K)
-        np.fill_diagonal(K,1)
+            K = squareform(K)
+            np.fill_diagonal(K,1)
 
-        if eval_gradient:
-            raise("eval_gradient not implemented yet.")
+            if eval_gradient:
+                # approximate gradient numerically
+                def f(theta):  # helper function
+                    return self.clone_with_theta(theta)(X, Y)
+                return K, _approx_fprime(self.theta, f, 1e-10)
+                return K, None
+            else:
+                return K
+
         else:
-            return K
+            mx, nx = s
+            sy = Y.shape
+            my, ny = sy
+            K = np.zeros((mx , my), dtype=np.double)
+            X = _convert_to_double(X)
+            Y = _convert_to_double(Y)
+            for i in xrange(0, mx):
+                for j in xrange(0, my):
+                    xi_yj = np.dtype('d')
+                    xi_yj = X[i] + Y[j]
+                    K[i][j] = np.exp( (self.d - xi_yj) / (2*self.a) )
+
+            #K = squareform(K)
+
+            if eval_gradient:
+                # approximate gradient numerically
+                def f(theta):  # helper function
+                    return self.clone_with_theta(theta)(X, Y)
+                return K, _approx_fprime(self.theta, f, 1e-10)
+            else:
+                return K
 
         pass # __call__
+
+    def diag(self,X):
+        return np.diag(self(X))
+
+    def is_stationary(self):
+        return False
 
     def __repr__(self):
         return "{0}(d={1:.3g}, a={2:.3g})".format(
@@ -135,3 +205,16 @@ class fallExp(kernel):
 
 
     pass # fallExp
+
+
+# adapted from scipy/optimize/optimize.py for functions with 2d output
+def _approx_fprime(xk, f, epsilon, args=()):
+    f0 = f(*((xk,) + args))
+    grad = np.zeros((f0.shape[0], f0.shape[1], len(xk)), float)
+    ei = np.zeros((len(xk), ), float)
+    for k in range(len(xk)):
+        ei[k] = 1.0
+        d = epsilon * ei
+        grad[:, :, k] = (f(*((xk + d,) + args)) - f0) / d[k]
+        ei[k] = 0.0
+    return grad

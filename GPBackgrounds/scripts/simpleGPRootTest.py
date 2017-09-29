@@ -2,8 +2,11 @@ from ROOT import *
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF,Matern, ConstantKernel as C
+import sys
+sys.path.append('../GPBackgrounds')
 from RootToNp import *
 from SignalModel import *
+from MYYKernel import *
 import sys
 
 sigmaMin = 1e-1
@@ -24,7 +27,8 @@ dy = GPh.getErrArr()
 
 x = np.atleast_2d(np.linspace(start=0., stop=10, num=1000)).T  # Predict at each data point
 
-kernel = C(1.0, (sigmaMin, 1e5)) * RBF(2.0, (lMin, 1e3)) #squared exponential kernel
+#kernel = C(1.0, (sigmaMin, 1e5)) * RBF(2.0, (lMin, 1e3)) #squared exponential kernel
+kernel = C(1.0, 1e-3,1e5) * FallExp() * Gibbs()
 
 gp = GaussianProcessRegressor(kernel=kernel
                                 #,optimizer=None
