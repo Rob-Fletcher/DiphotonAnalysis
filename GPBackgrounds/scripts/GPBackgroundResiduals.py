@@ -25,10 +25,9 @@ def run(args, mass, winLow, winHigh):
 
     if args.doSig:
         #get signal hist
-        sighist = buildSignal(125,500, bkghist.GetNbinsX())
+        sighist = buildSignal(125,1000, bkghist.GetNbinsX())
 
         #inject signal into background
-        print "bkhist bins:", bkghist.GetNbinsX(), "sighist:", sighist.GetNbinsX()
         bkghist.Add(sighist)
 
     GPh = GPHisto(bkghist)
@@ -60,19 +59,17 @@ def run(args, mass, winLow, winHigh):
     x = GPh.getXArr()
 
     #kernel = C(800.0, (1e-3, 1e3)) * RBF(100.0, (1e-3, 1e3)) #squared exponential kernel
-    #kernel = C(10.0, (1e-3, 1e15)) * RBF(48, (1,1e5 )) #squared exponential kernel
-    #kernel = C((2.98e4)**2, (1e-3, 1e15)) * RBF(72, (1,1e5 )) #squared exponential kernel
-    #kernel = C(1000.0, (1e-3, 1e15)) * FallExp(1.0, (1e-5, 1e2), 1.0, (1e-3,1e15)) * Gibbs(1.0, (1e-3, 1e5), 1.0, (1e-3,1e5))
-    kernel = C((3.74e4)**2, (1e-3, 1e15)) * FallExp(9.38e-5, (1e-10 , 1e2), 3.66e12, (1e-3,1e15)) * Gibbs(10.5, (1e-3, 1e5), 0.0109, (1e-3,1e5))
+    #kernel = C(10.0, (1e-3, 1e15)) * RBF(np.sqrt(2)*(7**2), (1e-3,1e5 )) #squared exponential kernel
+    kernel = C(1000.0, (1e-3, 1e15)) * FallExp(1.0, (1e-5, 1e2), 1.0, (1e-3,1e15)) * Gibbs(1.0, (1e-3, 1e5), 1.0, (1e-3,1e5))
     #kernel = C(10.0, (1e-3, 1e6)) * Gibbs(1.0, (1e-3, 1e5), 1.0, (1e-3,1e5))
-    #kernel = FallExp(1.0,(1e-5,1e2), 1.0, (1e-3, 1e15))* RBF(50., (1e-3,1e5 )) #squared exponential kernel
 
 
+    print "dy[5] =",dy[5]
+    print "err =", bkghist.GetBinError(5), "Original =", bkghist_template.GetBinError(5)
     gp = GaussianProcessRegressor(kernel=kernel
-                                    #,optimizer='fmin'
-                                    ,optimizer=None
+                                    ,optimizer='fmin'
                                     ,alpha=dy**2
-                                    ,n_restarts_optimizer=9
+                                    ,n_restarts_optimizer=15
                                     )
 
     gp.fit(X,y)
@@ -101,11 +98,7 @@ def run(args, mass, winLow, winHigh):
     else:
         outfile = TFile('out.root','RECREATE')
         #outhist = arrayToHisto('GP Fit', 105, 160, y_pred, sigma)
-        outhist = None
-        if args.CL is '95':
-            outhist = GPh.getHisto(y_pred, 1.96*sigma, 'GP Fit')
-        if args.CL is '68':
-            outhist = GPh.getHisto(y_pred, sigma, 'GP Fit')
+        outhist = GPh.getHisto(y_pred, 1.96*sigma, 'GP Fit')
         if args.noWindow:
             bkgWindow = GPh.getHisto(y, dy, 'Full Background')
         else:
@@ -169,17 +162,17 @@ def run(args, mass, winLow, winHigh):
         pad2.cd()
 
 
-        h3 = outhist.Clone("h3")
+        h3 = bkghist_template.Clone("h3")
         h3.SetLineColor(kBlack)
         h3.SetMinimum(0.95)
         h3.SetMaximum(1.05)
         h3.Sumw2()
         h3.SetStats(0)
-        h3.Divide(bkghist_template)
+        h3.Divide(outhist)
         h3.SetMarkerColor(kBlack)
         h3.SetMarkerStyle(20)
-        h3.SetMarkerSize(0.8)
-        h3.Draw("epsame")
+        h3.SetMarkerSize(0.5)
+        h3.Draw("ep")
 
         h4 = bkghist_template.Clone("h4")
         h4.SetLineColor(kRed)
@@ -188,26 +181,10 @@ def run(args, mass, winLow, winHigh):
         h4.Sumw2()
         h4.SetStats(0)
         h4.Divide(expFitResult)
-        denom = h4.Clone("denom")
-        h4.Divide(denom)
-        h4.Divide(denom)
         h4.SetMarkerColor(kRed)
         h4.SetMarkerStyle(20)
-        h4.SetMarkerSize(0.8)
+        h4.SetMarkerSize(0.5)
         h4.Draw("epsame")
-
-        h5 = bkgWindow.Clone('h5')
-        h5.SetLineColor(kBlue)
-        h5.SetMinimum(0.95)
-        h5.SetMaximum(1.05)
-        h5.Sumw2()
-        h5.SetStats(0)
-        h5.Divide(bkghist_template)
-        h5.SetMarkerColor(kBlue)
-        h5.SetMarkerStyle(20)
-        h5.SetMarkerSize(0.8)
-        h5.Draw("epsame")
-
 
         line = TLine(105,1,160,1)
         line.Draw('same')
@@ -232,7 +209,7 @@ def run(args, mass, winLow, winHigh):
         h3.SetTitle(""); # Remove the ratio title
 
         # Y axis ratio plot settings
-        h3.GetYaxis().SetTitle("fit/data    ");
+        h3.GetYaxis().SetTitle("data/fit ");
         h3.GetYaxis().SetNdivisions(505);
         h3.GetYaxis().SetTitleSize(20);
         h3.GetYaxis().SetTitleFont(43);
@@ -252,7 +229,7 @@ def run(args, mass, winLow, winHigh):
         canv.Write()
         #canv.Print(winLow+'_'+winHigh+'_GPFit.pdf')
         #canv.Print(args.tag+'/GPFit_'+str(winLow)+'_'+str(winHigh)+'.pdf')
-        canv.Print(args.tag+'/GPFit_'+str(seed)+'_'+args.CL+'CL.pdf')
+        canv.Print(args.tag+'/GPFit_'+str(seed)+'.pdf')
 
         if args.doSig:
             ###  Plot signal stuff
@@ -328,8 +305,7 @@ if __name__ == '__main__':
     parser.add_argument("--noWindow","-w", action='store_true', help="Dont do the window cut. Train on whole sample.")
 
     args = parser.parse_args()
-    #args.CL = '95'
-    args.CL = '68'
+
     if not os.path.exists(args.tag):
         os.makedirs(args.tag)
 

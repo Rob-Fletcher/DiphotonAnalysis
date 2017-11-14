@@ -122,7 +122,7 @@ if __name__ == '__main__':
 
     f = TFile(args.input)
 
-    stats = 100000
+    stats = 10000000
     nToys = 1000
 
     bkghist_template = f.Get('hmgg_c0')
@@ -149,8 +149,8 @@ if __name__ == '__main__':
 
     x = GPh.getXArr()
 
-    #kernel = C(10.0, (1e-3, 1e15)) * RBF(50.0, (1e-2, 1e5)) #squared exponential kernel
-    kernel = C(1000.0, (1e-3, 1e15)) * FallExp(1.0, (1e-5, 1e2), 1.0, (1e-3,1e15)) * Gibbs(0.01, (1e-7, 1e5), 0.01, (1e-7,1e5))
+    kernel = C(10.0, (1e-3, 1e15)) * RBF(50.0, (1e-2, 1e5)) #squared exponential kernel
+    #kernel = C(1000.0, (1e-3, 1e15)) * FallExp(1.0, (1e-5, 1e2), 1.0, (1e-3,1e15)) * Gibbs(0.01, (1e-7, 1e5), 0.01, (1e-7,1e5))
 
 
     gp = GaussianProcessRegressor(kernel=kernel
@@ -161,7 +161,8 @@ if __name__ == '__main__':
 
     gp.fit(X,y)
     print gp.kernel_
-    raise()
+    lengthOpt = float(re.search('length_scale=(\d+(\.\d+)?)', gp.kernel_.__repr__()).group(1))
+    #raise()
     #optKernel = gp.kernel_
 
     h_expChi2 = TH1F("expChi2","expChi2",15,10,40)
@@ -193,5 +194,12 @@ if __name__ == '__main__':
 
     canv1 = TCanvas('c1', 'c1')
     h_hyperparams.Draw('hist')
+    canv1.Update()
+    ymin = canv1.GetFrame().GetY1()
+    ymax = canv1.GetFrame().GetY2()
+    line = TLine(lengthOpt,ymin,lengthOpt,ymax)
+    line.SetLineColor(kRed)
+    line.SetLineWidth(3)
+    line.Draw("same")
     canv1.Print(args.outDir+'/lengthDistribution.pdf')
     #print gp.kernel_

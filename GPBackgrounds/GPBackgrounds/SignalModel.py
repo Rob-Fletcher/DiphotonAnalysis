@@ -27,12 +27,11 @@ def DSCB(myy, par):
         raise("Inputs caused t to not fall in valid range")
 
 
-
 def buildSignal(mass, nevents, nbins):
     """Retuns a histogram with signal that can be injected into background.
 
     """
-    histo = TH1F('sig', 'sig', 220, 105, 160)
+    histo = TH1F('sig', 'sig', nbins, 105, 159)
     dscb_func = TF1("dscb", DSCB, 105, 160, 7)
     dscb_func.SetParameters(1  # Normalization
                             ,mass  # mu

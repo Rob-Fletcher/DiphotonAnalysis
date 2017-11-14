@@ -34,6 +34,7 @@ class GPFitter():
         self.trainHisto = trainHisto
         self.kernelFunc = kernel #internally the self.kernel variable will hold the actual kernel object.
         self.hParams = hParams
+        # Fill all the arrays from the histos.
 
     def predict(self, predPoints=None):
         """Get the GP prediction.

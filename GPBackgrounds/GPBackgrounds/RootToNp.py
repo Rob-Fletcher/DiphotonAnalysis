@@ -10,6 +10,7 @@ class GPHisto():
 
         self._histo = histo
         self._binLowEdges = np.array([])
+        self._binCenters = np.array([])
         self._binContent = np.array([])
         self._binErrors = np.array([])
 
@@ -22,6 +23,7 @@ class GPHisto():
 
         for nbin in range(1, self._histo.GetNbinsX()+1):
             self._binLowEdges = np.append(self._binLowEdges, [self._histo.GetBinCenter(nbin)])
+            self._binCenters = np.append(self._binCenters, [self._histo.GetBinCenter(nbin)])
             self._binContent = np.append(self._binContent, [self._histo.GetBinContent(nbin)])
             self._binErrors = np.append(self._binErrors, [self._histo.GetBinError(nbin)])
 
@@ -113,7 +115,7 @@ class GPHisto():
         """
         histo = self._histo.Clone(name)
         histo.Reset()
-        for index,value in enumerate(self._binLowEdges):
+        for index,value in enumerate(self._binCenters):
             histo.SetBinContent(histo.FindBin(value), yArr[index])
             histo.SetBinError(histo.FindBin(value), errArr[index])
         return histo
@@ -133,12 +135,11 @@ def histoToArray(histo):
     xaxis = np.array([])
     yaxis = np.array([])
     err = np.array([])
-    for nbin in range(1,histo.GetNbinsX()):
+    for nbin in range(1,histo.GetNbinsX()+1):
         xaxis = np.append(xaxis, [histo.GetBinLowEdge(nbin)])
         yaxis = np.append(yaxis, [histo.GetBinContent(nbin)])
         err   = np.append(err, [histo.GetBinError(nbin)])
     return xaxis,yaxis,err
-    pass
 
 def histoToArrayCut(histo, cutlow, cuthigh):
     """Take a histogram and convert the data to a numpy array for use in
@@ -157,7 +158,6 @@ def histoToArrayCut(histo, cutlow, cuthigh):
         yaxis = np.append(yaxis, [histo.GetBinContent(nbin)])
         err   = np.append(err, [histo.GetBinError(nbin)])
     return xaxis,yaxis,err
-    pass
 
 def histoToArrayTest(histo, cutlow, cuthigh):
     """Take a histogram and convert the data to a numpy array for use in
@@ -178,7 +178,6 @@ def histoToArrayTest(histo, cutlow, cuthigh):
         yaxis = np.append(yaxis, [histo.GetBinContent(nbin)])
         err   = np.append(err, [histo.GetBinError(nbin)])
     return xaxis,yaxis,err
-    pass
 
 def arrayToHisto(title, xmin, xmax, arr, errarr=None):
     """Convert a numpy array into a histogram to plot with root.
@@ -187,7 +186,7 @@ def arrayToHisto(title, xmin, xmax, arr, errarr=None):
     hist = TH1F(title, title, len(arr)+1,xmin,xmax)
     for nbin, binContent in enumerate(arr,start=1):
         hist.SetBinContent(nbin, binContent)
-        hist.SetBinError(nbin, errarr[nbin-1]) # -1 because root starts at 1 but array index starts at 0
+        if False:
+            hist.SetBinError(nbin, errarr[nbin-1]) # -1 because root starts at 1 but array index starts at 0
 
     return hist
-    pass
