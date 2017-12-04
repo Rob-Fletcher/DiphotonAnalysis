@@ -14,43 +14,50 @@ def DSCB(myy, par):
 
     t = (myy[0] - mu)/sigma
     if ((-1*alpha_low) <= t) or (t < alpha_high):
-        return norm * exp((-1*t**2)/2)
+        return exp((-1*t**2)/2)
     if (t < -1*alpha_low):
         num = exp(-0.5*alpha_low**2)
         A = alpha_low/n_low
         B = (n_low/alpha_low) - alpha_low - t
-        return norm * num/((A*B)**n_low)
+        return num/((A*B)**n_low)
     if (t > alpha_high):
         num = exp(-0.5*alpha_low**2)
         A = alpha_high/n_high
         B = (n_high/alpha_high) - alpha_high + t
-        return norm * num/((A*B)**n_high)
+        return num/((A*B)**n_high)
     else:
         raise("Inputs caused t to not fall in valid range")
 
 f = ROOT.TFile("../data/templateHists_inclusive.root")
-stats = 1000
+stats = 1000000
 bkgTemp = f.Get('hmgg_c0')
 bkgTemp.Rebin(8)
 
-datasighist = buildSignal(125,stats, bkgTemp.GetNbinsX())
+datasighist = buildSignal(140,stats, bkgTemp.GetNbinsX())
 
 integralHisto = datasighist.Integral()
 
 dscb_func = ROOT.TF1("dscb", DSCB, 105, 160, 7)
-dscb_func.SetParameters(401  # Normalization
-                        ,125  # mu
+dscb_func.SetParameters(1  # Normalization
+                        ,140  # mu
                         ,1.475   # alpha_low
                         ,1.902   # alpha_high
                         ,12.1   # n_low
                         ,11.6   # n_high
                         ,1.86  ) # sigma
 
-integralFunc = dscb_func.Integral(105, 160)
+integralNorm = dscb_func.Integral(105, 160)
 
-print "Histo Integral:", integralHisto, "Function Integral:", integralFunc
+integralFunc = integralNorm * (stats/ integralNorm)
+
+funcHist = datasighist.Clone()
+funcHist.Reset()
+funcHist.Add(dscb_func, stats*funcHist.GetBinWidth(1)/integralNorm)
+funcHist.SetLineColor(ROOT.kRed)
+
+print "Histo Integral:", integralHisto, "Function Integral:", funcHist.Integral()
 
 canv1 = ROOT.TCanvas('c1','c1')
 datasighist.Draw()
-dscb_func.Draw('same')
+funcHist.Draw('same')
 canv1.Print('NormTest.pdf')

@@ -9,7 +9,7 @@ from SignalModel import *
 
 def run(args, trainHisto, dataHisto):
     myy = ROOT.RooRealVar('myy','myy',105,159)
-    nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-100,100)
+    nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-100)
 
     #The PDF for the GP bkg + signal DSCB
     GPpdf = RooGP.RooGP("mypdf", "CustomPDF",myy ,nSigGP, args.sigMass, trainHisto, dataHisto)
@@ -18,19 +18,27 @@ def run(args, trainHisto, dataHisto):
     data = ROOT.RooDataHist("dh", "dh", ROOT.RooArgList(myy), dataHisto)
 
     #Fit the pdf to the data
-    fitResult = GPpdf.fitTo(data, ROOT.RooFit.Save())
+    #fitResult = GPpdf.fitTo(data, ROOT.RooFit.Save())
+    gphisto100 = GPpdf.getGPHisto(-1100)
+    gphisto125 = GPpdf.getGPHisto(-1300)
+
 
     # Get negative log likelihoods
-    nllGP = GPpdf.createNLL(data)
-    profileGP = nllGP.createProfile(ROOT.RooArgSet(nSigGP))
+    #nllGP = GPpdf.createNLL(data)
+    #profileGP = nllGP.createProfile(ROOT.RooArgSet(nSigGP))
 
     # Plot the background fit and data
     c1 = ROOT.TCanvas('BkgFit','Background Fit')
-    frame = myy.frame()
-    data.plotOn(frame)
-    GPpdf.plotOn(frame)
-    frame.Draw()
-    nSigGP.Print()
+    #frame = myy.frame()
+    #data.plotOn(frame)
+    #GPpdf.plotOn(frame)
+    #frame.Draw()
+    #nSigGP.Print()
+    dataHisto.SetMarkerStyle(20)
+    gphisto125.SetLineColor(ROOT.kRed)
+    gphisto100.Draw()
+    gphisto125.Draw('same')
+    dataHisto.Draw('samep')
     c1.Print(args.outDir+'/test_GP.pdf')
 
     """
@@ -70,7 +78,7 @@ if __name__ == '__main__':
     dataHisto.FillRandom(trainHisto, stats)
     if args.doSig:
         #Make a signal toy and add it to the
-        datasighist = buildSignal(125,125, dataHisto.GetNbinsX())
+        datasighist = buildSignal(125,1000, dataHisto.GetNbinsX())
         dataHisto.Add(datasighist)
 
     run(args, trainHisto, dataHisto)

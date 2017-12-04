@@ -136,7 +136,7 @@ def histoToArray(histo):
     yaxis = np.array([])
     err = np.array([])
     for nbin in range(1,histo.GetNbinsX()+1):
-        xaxis = np.append(xaxis, [histo.GetBinLowEdge(nbin)])
+        xaxis = np.append(xaxis, [histo.GetBinCenter(nbin)])
         yaxis = np.append(yaxis, [histo.GetBinContent(nbin)])
         err   = np.append(err, [histo.GetBinError(nbin)])
     return xaxis,yaxis,err
@@ -183,9 +183,10 @@ def arrayToHisto(title, xmin, xmax, arr, errarr=None):
     """Convert a numpy array into a histogram to plot with root.
 
     """
-    hist = TH1F(title, title, len(arr)+1,xmin,xmax)
-    for nbin, binContent in enumerate(arr,start=1):
-        hist.SetBinContent(nbin, binContent)
+    #print "Length of arr:", len(arr)
+    hist = TH1F(title, title, len(arr),xmin,xmax)
+    for nbin in range(1, len(arr)+1):
+        hist.SetBinContent(nbin, arr[nbin-1]) # arr starts at 0 but histograms start at 1
         if False:
             hist.SetBinError(nbin, errarr[nbin-1]) # -1 because root starts at 1 but array index starts at 0
 

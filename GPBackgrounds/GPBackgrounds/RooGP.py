@@ -5,10 +5,11 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from RootToNp import *
 
-def DSCB(myy, par):
-    norm = par[0]
-    mu = par[1]
+ROOT.TH1.AddDirectory(ROOT.kFALSE)
 
+
+def DSCB(myy, par):
+    mu = par[0]
     alpha_low = 1.475   # alpha_low
     alpha_high = 1.902   # alpha_high
     n_low = 12.1   # n_low
@@ -18,17 +19,17 @@ def DSCB(myy, par):
 
     t = (myy[0] - mu)/sigma
     if ((-1*alpha_low) <= t) or (t < alpha_high):
-        return norm * exp((-1*t**2)/2)
+        return exp((-1*t**2)/2)
     if (t < -1*alpha_low):
         num = exp(-0.5*alpha_low**2)
         A = alpha_low/n_low
         B = (n_low/alpha_low) - alpha_low - t
-        return norm * num/((A*B)**n_low)
+        return num/((A*B)**n_low)
     if (t > alpha_high):
         num = exp(-0.5*alpha_low**2)
         A = alpha_high/n_high
         B = (n_high/alpha_high) - alpha_high + t
-        return norm * num/((A*B)**n_high)
+        return num/((A*B)**n_high)
     else:
         raise("Inputs caused t to not fall in valid range")
 
@@ -43,6 +44,8 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.sigMass = sigMass
         self.trainHisto = trainHisto
         self.dataHisto = dataHisto
+        self.dataXmin = self.dataHisto.GetBinLowEdge(1)
+        self.dataXmax = self.dataHisto.GetBinLowEdge(self.dataHisto.GetNbinsX())+self.dataHisto.GetBinWidth(1)
 
         self.kernel = C((2.98e4)**2, (1e-3, 1e15)) * RBF(60, (1,1e5 )) #squared exponential kernel
         # Scale the training histogram to the datahisto stats. This will ensure that the amplitude
@@ -51,7 +54,11 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.opt_kernel = self.setTrainMC(trainHisto)
 
         #Need to think a bit more about how to set the range correctly here.
-        self.sigFunction = ROOT.TF1("dscb", DSCB, 105, 160, 2)
+        #self.sigFunction = ROOT.TF1("dscb", DSCB, 105, 159, 1)
+        self.sigFunction = ROOT.TF1("dscb", DSCB, self.dataXmin, self.dataXmax, 1)
+        self.sigFunction.SetParameters(self.sigMass,0)
+        self.sigNorm = self.sigFunction.Integral(self.dataXmin, self.dataXmax )
+        print "Signal Normalization is", self.sigNorm
 
         self.currentNSig = None
         self.currentSBHist = None
@@ -86,6 +93,35 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         # return a kernel object with hyperparameters optimized
         return gp.kernel_
 
+    def getSigHisto(self, nSig):
+        sig_func = self.sigFunction
+        nSigScale = nSig*self.dataHisto.GetBinWidth(1) / self.sigNorm
+        sigHisto = self.dataHisto.Clone("sigHisto")
+        sigHisto.Reset()
+        sigHisto.Add(sig_func, nSigScale)
+        return sigHisto
+
+
+
+    def getGPHisto(self, nSig):
+        if self.currentNSig == nSig:
+            return self.currentSBHist
+        else:
+            sig_func = self.sigFunction
+            nSigScale = nSig*self.dataHisto.GetBinWidth(1) / self.sigNorm
+            sigSubtractedHist = self.dataHisto.Clone("sigSubtractedHist")
+            sigSubtractedHist.Add(sig_func, -1*nSigScale) #Subtrac the signal from the data
+            #Get the Array corresponding to the subtracted histogram
+            X, y_subtracted, errArr = histoToArray(sigSubtractedHist)
+            #print "X array size", X.size
+            # fit the GP to what is left. Then get a GP prediction on the result.
+            self.gp.fit(np.atleast_2d(X).T,y_subtracted)
+            y_pred, sigma = self.gp.predict(np.atleast_2d(X).T, return_std=True)
+
+            gpHisto = arrayToHisto("GPhisto", self.dataXmin, self.dataXmax, y_pred)
+            gpHisto.Add(sig_func, nSigScale) #Add the signal back into the data
+            return gpHisto
+
     def evaluate(self, myy, nSig):
         """Overide the base class evaluate function.
 
@@ -94,18 +130,18 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         histogram. Then fit the GP to the remaining histo. Return the resulting
         signal histo + the GP fit of the background for the myy bin in question.
         """
+        #print "=== Myy:", myy, "   nSig:", nSig
         if not (nSig == self.currentNSig):
             self.currentNSig = nSig
             print "==== New current nSig:", self.currentNSig
-            #print "=======  Python - In Evaluate()."
-            #print "Myy:", myy, "nSig", nSig
-            #Get DSCB histogram
             sig_func = self.sigFunction
-            sig_func.SetParameters(nSig, self.sigMass)
+            nSigScale = nSig*self.dataHisto.GetBinWidth(1) / self.sigNorm
+            #print "==== nSigScale:", nSigScale
+            #sig_func.SetParameters (self.sigMass)
             #sig_Histo = sig_func.CreateHistogram()
             #subtract DSCB distribution from background
             sigSubtractedHist = self.dataHisto.Clone("sigSubtractedHist")
-            sigSubtractedHist.Add(sig_func, -1) #Subtrac the signal from the data
+            sigSubtractedHist.Add(sig_func, -1*nSigScale) #Subtrac the signal from the data
             #Get the Array corresponding to the subtracted histogram
             X, y_subtracted, errArr = histoToArray(sigSubtractedHist)
             #print "X array size", X.size
@@ -113,9 +149,13 @@ class RooGP(ROOT.TPyRooGPSigPdf):
             self.gp.fit(np.atleast_2d(X).T,y_subtracted)
             y_pred, sigma = self.gp.predict(np.atleast_2d(X).T, return_std=True)
 
-            gpHisto = arrayToHisto("GPhisto", 105, 160, y_pred)
-            gpHisto.Add(sig_func, 1) #Add the signal back into the data
+            gpHisto = arrayToHisto("GPhisto", self.dataXmin, self.dataXmax, y_pred)
+            gpHisto.Add(sig_func, nSigScale) #Add the signal back into the data
+            if self.currentSBHist:
+                self.currentSBHist.Delete()
             self.currentSBHist = gpHisto
+            #print "=== evaluate return value:", gpHisto.GetBinContent(gpHisto.FindBin(myy))
             return gpHisto.GetBinContent(gpHisto.FindBin(myy))
         else:  #If we are still on the same nSig number just return the stored histogram.
+            #print "=== evaluate return value:", self.currentSBHist.GetBinContent(self.currentSBHist.FindBin(myy))
             return self.currentSBHist.GetBinContent(self.currentSBHist.FindBin(myy))
