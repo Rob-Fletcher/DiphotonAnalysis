@@ -31,7 +31,7 @@ def DSCB(myy, par):
 f = ROOT.TFile("../data/templateHists_inclusive.root")
 stats = 1000000
 bkgTemp = f.Get('hmgg_c0')
-bkgTemp.Rebin(8)
+bkgTemp.Rebin(2)
 
 datasighist = buildSignal(140,stats, bkgTemp.GetNbinsX())
 
@@ -47,12 +47,14 @@ dscb_func.SetParameters(1  # Normalization
                         ,1.86  ) # sigma
 
 integralNorm = dscb_func.Integral(105, 160)
+print "Integral norm:",integralNorm
 
 integralFunc = integralNorm * (stats/ integralNorm)
 
 funcHist = datasighist.Clone()
 funcHist.Reset()
 funcHist.Add(dscb_func, stats*funcHist.GetBinWidth(1)/integralNorm)
+#funcHist.Add(dscb_func, stats/integralNorm, "I")
 funcHist.SetLineColor(ROOT.kRed)
 
 print "Histo Integral:", integralHisto, "Function Integral:", funcHist.Integral()

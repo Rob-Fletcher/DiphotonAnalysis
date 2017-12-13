@@ -83,9 +83,9 @@ if __name__ == '__main__':
     tree.Branch('nSig', recoNsig, 'nSig/F')
     tree.Branch('nSigErr', recoNsigError, 'nSigErr/F')
     tree.Branch('pull', pull, 'pull/F')
-    fitNSig  = ROOT.TH1F("fitNSig", "Fitted nSig", 50, -500,500)
-    pullNSig = ROOT.TH1F("pullNSig", "Pull of nSig", 50, -25,25)
-    for i in range(1000):
+    fitNSig  = ROOT.TH1F("fitNSig", "Fitted nSig", 50, -200,50)
+    pullNSig = ROOT.TH1F("pullNSig", "Pull of nSig", 50, -5,5)
+    for i in range(2000):
         dataHisto = ROOT.TH1F('dataHisto', 'Background data', 27, 105, 159)
 
         ROOT.gRandom.SetSeed(i)
