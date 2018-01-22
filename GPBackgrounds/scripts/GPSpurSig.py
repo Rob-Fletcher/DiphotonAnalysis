@@ -9,17 +9,17 @@ from SignalModel import *
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
 def run(args, trainHisto):
-    myy = ROOT.RooRealVar('myy','myy',105,160)
-    nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-1000,1000)
+    myy = ROOT.RooRealVar('myy','myy',args.lowRange,args.hiRange)
+    nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-5,5)
 
     #The PDF for the GP bkg + signal DSCB
-    GPpdf = RooGP.RooGP("mypdf", "CustomPDF",myy ,nSigGP, args.sigMass, trainHisto, trainHisto)
+    GPpdf = RooGP.RooGP("mypdf", "CustomPDF",myy ,nSigGP, args.sigMass, trainHisto, trainHisto, [args.lowRange, args.hiRange])
 
     #get data from histogram to fit to
     data = ROOT.RooDataHist("dh", "dh", ROOT.RooArgList(myy), trainHisto)
 
     #Fit the pdf to the data
-    fitResult = GPpdf.fitTo(data, ROOT.RooFit.SumW2Error(ROOT.kTRUE), ROOT.RooFit.Save())
+    fitResult = GPpdf.fitTo(data, ROOT.RooFit.SumW2Error(ROOT.kFALSE), ROOT.RooFit.Save())
 
 
     return nSigGP.getVal(), nSigGP.getError()
@@ -50,27 +50,28 @@ if __name__ == '__main__':
         os.makedirs(args.outDir)
 
 
+    args.lowRange = 105
+    args.hiRange = 160
     args.lowMass = 110
     args.hiMass  = 158
+    #S = 335 # plot 1
+    #S = 1115 # plot 2
+    S = 0.9 # plot 3 and 4
     f = ROOT.TFile(args.input)
 
-    trainHisto = f.Get('m_yy_c1_M17_ggH_0J_Cen_BkgTemplate')
-    cont_unscaled = trainHisto.GetBinContent(trainHisto.FindBin(125))
-    err_unscaled  = trainHisto.GetBinError(trainHisto.FindBin(125))
-    print "Unscaled - Content: {}    Error: {}   Relative Error: {}".format(str(cont_unscaled), str(err_unscaled), str(err_unscaled/cont_unscaled))
+    trainHisto = f.Get('m_yy_c1_M17_ggH_0J_Cen_BkgTemplate') # plot 1,2 and 3
+    #trainHisto = f.Get('m_yy_c23_M17_VHdilep_BkgTemplate') # plot 4
+    #trainHisto = f.Get('m_yy')
     #Normalize the trainig histo to the correct number of expected background events
-    norm = 333000/ trainHisto.Integral()
-    #norm = 1100000/ trainHisto.Integral()
-    #norm = 333000/ trainHisto.Integral()
+    #norm = 333000/ trainHisto.Integral() # plot 1
+    #norm = 1100000/ trainHisto.Integral() # plot 2
+    norm = 10/ trainHisto.Integral() # plot 3 and 4
     trainHisto.Scale(norm)
-    cont_scaled = trainHisto.GetBinContent(trainHisto.FindBin(125))
-    err_scaled  = trainHisto.GetBinError(trainHisto.FindBin(125))
-    print "Scaled - Content: {}    Error: {}   Relative Error: {}".format(str(cont_scaled), str(err_scaled), str(err_scaled/cont_scaled))
 
     outfile = ROOT.TFile("output.root", "RECREATE")
 
 
-    SSHisto = ROOT.TH1F("nSS", "N Spurious Signal",158-110, 110, 158 )
+    SSHisto = ROOT.TH1F("nSS", "N Spurious Signal",args.hiMass-args.lowMass, args.lowMass, args.hiMass )
     SSHisto.SetDirectory(outfile)
     SSRelHisto = ROOT.TH1F("ssS","SS / S", 158-110, 110,158)
     SSRelHisto.SetDirectory(outfile)
@@ -84,33 +85,37 @@ if __name__ == '__main__':
     #SSErrHisto = SSHisto.Clone('SSErrHisto')
     loopN = 1
     ssMax = 0
-    for sigMass in range(110, 158):
+    for sigMass in range(args.lowMass, args.hiMass):
 
         print "====================================================="
-        print "({0}/{1})Getting SS for signal mass: {2}".format(loopN, 158-110, sigMass)
+        print "({0}/{1})Getting SS for signal mass: {2}".format(loopN, args.hiMass-args.lowMass, sigMass)
         args.sigMass = sigMass
         recoNsig, recoNsigError =    run(args, trainHisto)
         SSHisto.SetBinContent(SSHisto.FindBin(sigMass), recoNsig )
         SSHisto.SetBinError(SSHisto.FindBin(sigMass), recoNsigError)
-        SSRelHisto.SetBinContent(SSRelHisto.FindBin(sigMass), recoNsig/335)
+        SSRelHisto.SetBinContent(SSRelHisto.FindBin(sigMass), recoNsig/S)
         SSErrHisto.SetBinContent(SSErrHisto.FindBin(sigMass), recoNsig/recoNsigError)
         print "----  Found SS:", recoNsig, "+-", recoNsigError
+        ssMax = max(ssMax, abs(recoNsig))
         loopN = loopN + 1
 
 
     c = ROOT.TCanvas('fitNsig', 'Fit nSig')
     SSHisto.SetMarkerStyle(20)
-    SSHisto.Draw("PC")
+    SSHisto.SetStats(0)
+    SSHisto.Draw("PCE")
     c.Print(args.outDir+'/firNsig_'+args.tag+'.pdf')
 
     c_ssRel = ROOT.TCanvas('SSRel', 'SS / S')
     SSRelHisto.SetMarkerStyle(20)
+    SSRelHisto.SetStats(0)
     SSRelHisto.Draw("PC")
     c_ssRel.Print(args.outDir+'/ssRel_'+args.tag+'.pdf')
 
     c_ssErr = ROOT.TCanvas()
     SSErrHisto.SetMarkerStyle(20)
-    SSErrHisto.GetYaxis().SetRangeUser(-2,2)
+    #SSErrHisto.GetYaxis().SetRangeUser(-2,2)
+    SSErrHisto.SetStats(0)
     SSErrHisto.Draw("PC")
     c_ssErr.Print(args.outDir+'/ssErr_'+args.tag+'.pdf')
 

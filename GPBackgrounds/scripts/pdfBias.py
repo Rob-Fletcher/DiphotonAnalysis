@@ -9,11 +9,11 @@ from SignalModel import *
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
 def run(args, trainHisto, dataHisto):
-    myy = ROOT.RooRealVar('myy','myy',105,159)
+    myy = ROOT.RooRealVar('myy','myy',args.lowRange,args.hiRange)
     nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-2000,2000)
 
     #The PDF for the GP bkg + signal DSCB
-    GPpdf = RooGP.RooGP("mypdf", "CustomPDF",myy ,nSigGP, args.sigMass, trainHisto, dataHisto)
+    GPpdf = RooGP.RooGP("mypdf", "CustomPDF",myy ,nSigGP, args.sigMass, trainHisto, dataHisto, [args.lowRange,args.hiRange])
 
     #get data from histogram to fit to
     data = ROOT.RooDataHist("dh", "dh", ROOT.RooArgList(myy), dataHisto)
@@ -65,14 +65,23 @@ if __name__ == '__main__':
     if not os.path.exists(args.outDir):
         os.makedirs(args.outDir)
 
+    args.lowRange = 50
+    args.hiRange = 200
+    args.lowMass = 55
+    args.hiMass = 195
     args.sigMass = 125
-    stats = 100000
+    stats = 300000
     injSig = 500
 
     f = ROOT.TFile(args.input)
 
-    trainHisto = f.Get('hmgg_c0')
-    trainHisto.Rebin(8)
+    trainHisto = f.Get('m_yy')
+    norm = 300000/ trainHisto.Integral()
+    #norm = 1100000/ trainHisto.Integral()
+    #norm = 333000/ trainHisto.Integral()
+    trainHisto.Scale(norm)
+
+    #trainHisto.Rebin(8)
     #dataHisto = trainHisto.Clone('dataHisto')
     #dataHisto.Reset()
     outfile  = ROOT.TFile(args.outDir+'/output.root', 'RECREATE')
@@ -83,10 +92,12 @@ if __name__ == '__main__':
     tree.Branch('nSig', recoNsig, 'nSig/F')
     tree.Branch('nSigErr', recoNsigError, 'nSigErr/F')
     tree.Branch('pull', pull, 'pull/F')
-    fitNSig  = ROOT.TH1F("fitNSig", "Fitted nSig", 50, -200,50)
+    fitNSig  = ROOT.TH1F("fitNSig", "Fitted nSig", 50, -500,500)
     pullNSig = ROOT.TH1F("pullNSig", "Pull of nSig", 50, -5,5)
     for i in range(2000):
-        dataHisto = ROOT.TH1F('dataHisto', 'Background data', 27, 105, 159)
+        #dataHisto = ROOT.TH1F('dataHisto', 'Background data', 27, 105, 159)
+        dataHisto = trainHisto.Clone()
+        dataHisto.Reset()
 
         ROOT.gRandom.SetSeed(i)
 
