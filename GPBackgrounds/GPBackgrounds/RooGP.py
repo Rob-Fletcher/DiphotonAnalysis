@@ -11,9 +11,28 @@ def DSCB(myy, par):
     """Signal double sided crystal ball function
 
     """
-    Mx = par[0]
+    mass = par[0]
 
+    mCBSignal0 =  0.048803
+    mCBSignal1 = -0.00512848
+    sCBSignal0 =  1.3612
+    sCBSignal1 =  0.78698
+    aLoSignal0 =  1.6738
+    aLoSignal1 = -0.0159122
+    aHiSignal0 =  1.4824
+    aHiSignal1 =  0.12803
+    nLoSignal0 =  9.5595
+    nHiSignal0 =  72085
 
+    mnX = (mass - 100)/100
+    sigma  = (sCBSignal0   + sCBSignal1*mnX)
+    deltaMSignal  = (mCBSignal0 + mCBSignal1*mnX)
+    alpha_low = (aLoSignal0 + aLoSignal1*mnX)
+    n_low = (nLoSignal0)
+    alpha_high = (aHiSignal0 + aHiSignal1*mnX)
+    n_high = (nHiSignal0)
+
+    Mx  = (mass + deltaMSignal)
 
     alpha_low = 1.475   # alpha_low
     alpha_high = 1.902   # alpha_high
@@ -101,28 +120,50 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.nSig = nSig
         self.sigMass = sigMass
         self.trainResult = None
-        self.lengthScale = None
-        if 'lengthScale' in gpConfig:
-            print "Found lengthScale {}".format(gpConfig['lengthScale'])
-            self.lengthScale = gpConfig['lengthScale']
+
+        # Setup the prior Mean function if passed through config
         self.priorMean = None
         if 'priorMean' in gpConfig:
+            print "Using prior Mean function from config."
             self.priorMean = gpConfig['priorMean']
+            if not self.priorMean.InheritsFrom(ROOT.TF1.Class()):
+                raise "Prior mean must be a TF1 for now..."
+        # Set the training range. If none was given will default to the entire histogram.
+        self.trainMin = None  # The range to consider when training the GP
+        self.trainMax = None
         if 'train_range' in gpConfig:
             self.trainMin = gpConfig['train_range'][0]  # The range to consider when training the GP
             self.trainMax = gpConfig['train_range'][1]
-        else:
-            self.trainMin = None  # The range to consider when training the GP
-            self.trainMax = None
 
-        if self.lengthScale != None:
-            print "******** LengthScale: {}".format(self.lengthScale)
-            self.kernel = C((625)**2, (625**2, 625**2)) * RBF(self.lengthScale, (self.lengthScale, self.lengthScale)) #squared exponential kernel
-        else:
-            self.kernel = C((2.98e4)**2, (1e-10, 1e15)) * RBF(60, (1,200 )) #squared exponential kernel
+        # Setup the Kernel
+        self.lengthScale = None
+        self.amplitude = None
+        self.k1 = RBF(60, (1, 200)) #squared exponential kernel
+        self.k2 = C((1e3)**2, (1e-10, 1e15))
+
+        if 'lengthScale' in gpConfig:
+            self.lengthScale = gpConfig['lengthScale']
+            print "Found lengthScale: {} in config".format(str(self.lengthScale))
+            if self.lengthScale: # make sure its not set to None in the config
+                print "******** LengthScale: {}".format(self.lengthScale)
+                self.k1 = RBF(self.lengthScale, (self.lengthScale, self.lengthScale)) #squared exponential kernel
+
+        if 'amplitude' in gpConfig:
+            self.amplitude = gpConfig['amplitude']
+            if self.amplitude: #make sure its not set to None in the config
+                print "******** Amplitude: {}".format(self.amplitude)
+                self.k2 = C(self.amplitude, (self.amplitude, self.amplitude)) #Constant kernel
+
+        # asseble the Kernel
+        self.kernel = self.k1 * self.k2
+        print "Setting GP kernel: {}".format(self.kernel)
+
+        # Internal vars to keep track of things
         self.currentNSig = None
         self.currentSBHist = None
 
+        self.setTrainData(gpConfig['trainHisto'], gpConfig['trainHisto'])
+        ####  End of __init__()
 
 
     def setTrainData(self, trainHisto, dataHisto, binErrors=False):
@@ -146,30 +187,24 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         if not self.dataHisto:
             raise "Must set fit data before training data. Use setFitData( dataHisto, binErrors)"
 
-        self.trainHisto = trainHisto
+        self.trainHisto = trainHisto.Clone()
         print "Scaling training histo to data:", self.dataHisto.Integral()/self.trainHisto.Integral()
         self.trainHisto.Scale(self.dataHisto.Integral()/self.trainHisto.Integral())
         self.trainHisto.Sumw2()
 
-        #Get the prior mean shape. Normalize and subtract it from the histogram.
-        if self.priorMean:
-            priorMean = self.priorMean
-            priorMean.Scale(self.trainHisto.Integral()/self.priorMean.Integral())
-            self.trainHisto.Add(priorMean, -1.0)
-
-
         X_t, Y_t, dy_t = histoToArray(self.trainHisto, self.trainMin, self.trainMax)
-        #Need Y values from original histogram to get sqrt(N) errors correctly
-        X_orig, Y_orig, dy_orig = histoToArray(trainHisto, self.trainMin, self.trainMax)
+        binErr = Y_t
 
-        if binErrors:
-            gp = GaussianProcessRegressor(kernel=self.kernel
-                                        ,alpha=dy_orig**2
-                                        ,n_restarts_optimizer=10)
-        else:
-            gp = GaussianProcessRegressor(kernel=self.kernel
-                                        ,alpha=Y_orig     # is really sqrt(Y_orig)^2  Input should be error bars squared
-                                        ,n_restarts_optimizer=10)
+        #Get the prior mean shape. Subtract if from the training histo.
+        if self.priorMean:
+            self.trainHisto.Add(self.priorMean, -1.0)
+            X_t, Y_t, dy_t = histoToArray(self.trainHisto, self.trainMin, self.trainMax)
+
+        #Need Y values from original histogram to get sqrt(N) errors correctly
+        print "Running GP with sqrt(N) errors."
+        gp = GaussianProcessRegressor(kernel=self.kernel
+                                    ,alpha=binErr    # is really sqrt(Y_t_nom)^2  Input should be error bars squared
+                                    ,n_restarts_optimizer=10)
 
         # Fit for the hyperparameters.
         gp.fit(np.atleast_2d(X_t).T, Y_t)
@@ -242,15 +277,11 @@ class RooGP(ROOT.TPyRooGPSigPdf):
             self.currentNSig = nSig
             sig_func = self.sigFunction
             nSigScale = nSig*self.dataHisto.GetBinWidth(1) / self.sigNorm
-            if self.priorMean:
-                priorMeanScale = self.dataHisto.Integral()/self.priorMean.Integral()
-                priorMean = self.priorMean
-                priorMean.Scale(priorMeanScale)
 
             #subtract prior mean and DSCB distribution from background
             sigSubtractedHist = self.dataHisto.Clone("sigSubtractedHist")
             if self.priorMean:
-                sigSubtractedHist.Add(priorMean, -1.0)
+                sigSubtractedHist.Add(self.priorMean, -1.0)
 
             sigSubtractedHist.Add(sig_func, -1*nSigScale) #Subtrac the signal from the data
 
@@ -264,6 +295,8 @@ class RooGP(ROOT.TPyRooGPSigPdf):
             #gpHisto = arrayToHisto("GPhisto", self.dataXmin, self.dataXmax, y_pred)
             gpHisto = arrayToHisto("GPhisto", self.trainMin, self.trainMax, y_pred)
             gpHisto.Add(sig_func, nSigScale) #Add the signal back into the data
+            if self.priorMean:
+                gpHisto.Add(self.priorMean,1.0)
             if self.currentSBHist:
                 self.currentSBHist.Delete()
             self.currentSBHist = gpHisto

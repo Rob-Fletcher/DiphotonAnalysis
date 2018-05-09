@@ -31,15 +31,37 @@ def buildSignal(mass, nevents, nbins):
     """Retuns a histogram with signal that can be injected into background.
 
     """
-    histo = TH1F('sig', 'sig', nbins, 105, 159)
-    dscb_func = TF1("dscb", DSCB, 105, 160, 7)
+    histo = TH1F('sig', 'sig', nbins, 60, 120)
+    dscb_func = TF1("dscb", DSCB, 60, 120, 7)
+
+    mCBSignal0 =  0.048803
+    mCBSignal1 = -0.00512848
+    sCBSignal0 =  1.3612
+    sCBSignal1 =  0.78698
+    aLoSignal0 =  1.6738
+    aLoSignal1 = -0.0159122
+    aHiSignal0 =  1.4824
+    aHiSignal1 =  0.12803
+    nLoSignal0 =  9.5595
+    nHiSignal0 =  72085
+
+    mnX = (mass - 100)/100
+    sigma  = (sCBSignal0   + sCBSignal1*mnX)
+    deltaMSignal  = (mCBSignal0 + mCBSignal1*mnX)
+    aLo = (aLoSignal0 + aLoSignal1*mnX)
+    nLo = (nLoSignal0)
+    aHi = (aHiSignal0 + aHiSignal1*mnX)
+    nHi = (nHiSignal0)
+
+    mu  = (mass + deltaMSignal)
+
     dscb_func.SetParameters(1  # Normalization
-                            ,mass  # mu
-                            ,1.475   # alpha_low
-                            ,1.902   # alpha_high
-                            ,12.1   # n_low
-                            ,11.6   # n_high
-                            ,1.86  ) # sigma
+                            ,mu  # mu
+                            ,aLo   # alpha_low
+                            ,aHi   # alpha_high
+                            ,nLo   # n_low
+                            ,nHi   # n_high
+                            ,sigma  ) # sigma
 
     histo.FillRandom("dscb",nevents)
     return histo

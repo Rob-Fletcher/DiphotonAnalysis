@@ -59,11 +59,11 @@ def run(args, mass, winLow, winHigh):
 
     x = GPh.getXArr()
 
-    #kernel = C(800.0, (1e-3, 1e3)) * RBF(100.0, (1e-3, 1e3)) #squared exponential kernel
+    kernel = C(800.0, (1e-3, 1e3)) * RBF(100.0, (1e-3, 1e3)) #squared exponential kernel
     #kernel = C(10.0, (1e-3, 1e15)) * RBF(48, (1,1e5 )) #squared exponential kernel
     #kernel = C((2.98e4)**2, (1e-3, 1e15)) * RBF(72, (1,1e5 )) #squared exponential kernel
     #kernel = C(1000.0, (1e-3, 1e15)) * FallExp(1.0, (1e-5, 1e2), 1.0, (1e-3,1e15)) * Gibbs(1.0, (1e-3, 1e5), 1.0, (1e-3,1e5))
-    kernel = C((3.74e4)**2, (1e-3, 1e15)) * FallExp(9.38e-5, (1e-10 , 1e2), 3.66e12, (1e-3,1e15)) * Gibbs(10.5, (1e-3, 1e5), 0.0109, (1e-3,1e5))
+    #kernel = C((3.74e4)**2, (1e-3, 1e15)) * FallExp(9.38e-5, (1e-10 , 1e2), 3.66e12, (1e-3,1e15)) * Gibbs(10.5, (1e-3, 1e5), 0.0109, (1e-3,1e5))
     #kernel = C(10.0, (1e-3, 1e6)) * Gibbs(1.0, (1e-3, 1e5), 1.0, (1e-3,1e5))
     #kernel = FallExp(1.0,(1e-5,1e2), 1.0, (1e-3, 1e15))* RBF(50., (1e-3,1e5 )) #squared exponential kernel
 

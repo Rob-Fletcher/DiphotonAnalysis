@@ -12,10 +12,21 @@ Another option is that it doesnt know that the pdf is binned. Look for an option
 to make either the pdf or the variable binned.
 """
 
+def fitData(args, histo, fitfunc):
+    """Fit the data with a simple function to use as the mean of the GP.
+    This is just for the purposes of demonstrating that as lengthScale gets long
+    the GP approaches whatever function you use as the mean, thus the SS number
+    also approaches the value found with this mean.
+
+    """
+    temp = histo.Clone('tmp')
+    temp.Fit(fitfunc, 'L')
+    func = temp.GetFunction(fitfunc).Clone('myfunc')
+    return func
 
 def run(args, trainHisto, dataHisto, gpConfig):
     myy = ROOT.RooRealVar('myy','myy',args.lowRange,args.hiRange)
-    nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-500,500)
+    nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-20000,20000)
 
     #The PDF for the GP bkg + signal DSCB
     GPpdf = RooGP.RooGP("mypdf", "CustomPDF",myy ,nSigGP, args.sigMass, gpConfig)
@@ -25,34 +36,39 @@ def run(args, trainHisto, dataHisto, gpConfig):
     data = ROOT.RooDataHist("dh", "dh", ROOT.RooArgList(myy), dataHisto)
 
     #Fit the pdf to the data
-    fitResult = GPpdf.fitTo(data, ROOT.RooFit.SumW2Error(ROOT.kFALSE), ROOT.RooFit.Save())
+    fitResult = GPpdf.fitTo(data, ROOT.RooFit.Save())
+    #fitResult = GPpdf.fitTo(data)
 
 
     print "-------RooRealVar min at:", nSigGP.getVal(), nSigGP.getError()
     print "-------FitResult min at:", fitResult.floatParsFinal().Print("nSigGP")
-    gphisto, sigSub, gpSigSub = GPpdf.getGPHisto(fitResult.floatParsFinal().find('nSigGP').getVal())
+    gphisto, sigSub, gpSigSub = GPpdf.getGPHisto(nSigGP.getVal())
     trainResult = GPpdf.trainResult
-    #gphisto, sigSub, gpSigSub = GPpdf.getGPHisto(2000)
+    #gphisto, sigSub, gpSigSub = GPpdf.getGPHisto(-19000)
     #gphisto125 = GPpdf.getGPHisto(-1300)
 
 
     # Get negative log likelihoods
-    nllGP = GPpdf.createNLL(data)
-    profileGP = nllGP.createProfile(ROOT.RooArgSet(nSigGP))
+    #nllGP = GPpdf.createNLL(data)
+    #profileGP = nllGP.createProfile(ROOT.RooArgSet(nSigGP))
 
     # Plot the background fit and data
     c1 = ROOT.TCanvas('BkgFit','Background Fit')
+    #frame = myy.frame(ROOT.RooFit.Range(120,130))
     frame = myy.frame()
-    frame.SetTitle("GP Background, Kernel: "+str(GPpdf.gp.kernel_))
+    frame.SetTitle("GP Background, Kernel: {0}        SS: {1:.2f}".format( GPpdf.gp.kernel_ ,nSigGP.getVal() ))
     data.plotOn(frame)
-    #GPpdf.plotOn(frame)
+    GPpdf.plotOn(frame, ROOT.RooFit.Normalization(1.0/data.binVolume()))
     frame.Draw()
+    #gpConfig['priorMean'].Draw('same')
     #nSigGP.Print()
     #dataHisto.SetMarkerStyle(20)
-    gphisto.SetLineColor(ROOT.kRed)
-    gphisto.SetLineWidth(3)
+    #dataHisto.SetLineColor(ROOT.kRed)
+    #dataHisto.Draw('same')
+    #gphisto.SetLineColor(ROOT.kRed)
+    #gphisto.SetLineWidth(3)
     #gphisto100.Draw()
-    gphisto.Draw('same')
+    #gphisto.Draw('same')
 
     #trainResult.SetLineColor(ROOT.kRed)
     #trainResult.SetLineWidth(3)
@@ -92,29 +108,30 @@ if __name__ == '__main__':
     if not os.path.exists(args.outDir):
         os.makedirs(args.outDir)
 
-    priorMeanFile = ROOT.TFile('../data/KDEOutput.root')
-    priorMean = priorMeanFile.Get('myy_high')
+    #priorMeanFile = ROOT.TFile('../data/KDEOutput.root')
+    #priorMean = priorMeanFile.Get('myy_high')
 
     gpConfig = {
                 'lengthScale' : None
                 #,'lengthScale_min': 1
                 #,'lengthScale_max': 200
-                ,'amplitude'      : 100
-                ,'amplitude_min'      : 1e-3
-                ,'amplitude_max'      : 1e15
+                #,'amplitude'      : 693**2
+                ,'amplitude'      : None
                 ,'train_range'    : [105,160]
-                #,'priorMean'     : priorMean
     }
     args.sigMass = 125
     args.lowRange = 105
     args.hiRange = 160
-    stats = 1000000
+    stats = 330000
 
     f = ROOT.TFile(args.input)
 
+    #trainHisto = f.Get('myy_high')
+    #trainHisto.Rebin(30)
     #trainHisto = f.Get('hmgg_c0')
     #trainHisto = f.Get('m_yy_fine')
-    trainHisto = f.Get('m_yy_c1_M17_ggH_0J_Cen_BkgTemplate') # plot 1,2 and 3
+    #trainHisto = f.Get('m_yy_c1_M17_ggH_0J_Cen_BkgTemplate') # plot 1,2 and 3
+    trainHisto = f.Get('m_yy_c0_Inclusive_BkgTemplate') # plot 1,2 and 3
     #trainHisto = f.Get('m_yy_c23_M17_VHdilep_BkgTemplate') # plot 4
     #Normalize the trainig histo to the correct number of expected background events
     norm = 333000/ trainHisto.Integral() # plot 1
@@ -123,15 +140,18 @@ if __name__ == '__main__':
     trainHisto.Scale(norm)
 
 
-    gpConfig['lengthScale'] = None
     #gpConfig['lengthScale'] = float(1000)
     #dataHisto = ROOT.TH1F('dataHisto', 'Background data', 27, 105, 159)
     dataHisto = trainHisto.Clone()
     dataHisto.Reset()
 
-    ROOT.gRandom.SetSeed(99)
+    ROOT.gRandom.SetSeed(5)
 
     dataHisto.FillRandom(trainHisto, stats)
+
+    priorMean = fitData(args, dataHisto, "pol1")
+    #print "Function returns:",priorMean
+    gpConfig['priorMean'] = priorMean
 
 
     #run(args, trainHisto, dataHisto)
