@@ -34,11 +34,11 @@ def DSCB(myy, par):
 
     Mx  = (mass + deltaMSignal)
 
-    alpha_low = 1.475   # alpha_low
-    alpha_high = 1.902   # alpha_high
-    n_low = 12.1   # n_low
-    n_high = 11.6   # n_high
-    sigma = 1.86  # sigma
+    #alpha_low = 1.475   # alpha_low
+    #alpha_high = 1.902   # alpha_high
+    #n_low = 12.1   # n_low
+    #n_high = 11.6   # n_high
+    #sigma = 1.86  # sigma
 
     """
     MnX = (Mx-100.0)/100.0
@@ -177,6 +177,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.dataBinErrors = binErrors
         self.dataXmin = self.dataHisto.GetBinLowEdge(1)
         self.dataXmax = self.dataHisto.GetBinLowEdge(self.dataHisto.GetNbinsX())+self.dataHisto.GetBinWidth(1)
+        
         # Get the signal function
         self.sigFunction = ROOT.TF1("dscb", DSCB, self.dataXmin, self.dataXmax, 1)
         self.sigFunction.SetParameters(self.sigMass,0)
