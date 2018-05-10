@@ -62,7 +62,7 @@ if __name__ == '__main__':
     #S = 0.9 # plot 3 and 4
     f = ROOT.TFile(args.input)
 
-    trainHisto = f.Get('m_yy_conv0_fine_98perW') # plot 1,2 and 3
+    trainHisto = f.Get('m_yy_conv0_fine_99perW') # plot 1,2 and 3
     #trainHisto = f.Get('m_yy_c1_M17_ggH_0J_Cen_BkgTemplate') # plot 1,2 and 3
     #trainHisto = f.Get('m_yy_c23_M17_VHdilep_BkgTemplate') # plot 4
     #trainHisto = f.Get('m_yy')
