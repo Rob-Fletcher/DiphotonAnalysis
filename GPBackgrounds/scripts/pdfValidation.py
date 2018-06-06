@@ -24,13 +24,15 @@ def fitData(args, histo, fitfunc):
     func = temp.GetFunction(fitfunc).Clone('myfunc')
     return func
 
-def run(args, trainHisto, dataHisto, gpConfig):
+def run(args, gpConfig):
     myy = ROOT.RooRealVar('myy','myy',args.lowRange,args.hiRange)
     nSigGP = ROOT.RooRealVar('nSigGP','nSigGP',-20000,20000)
 
+    dataHisto = gpConfig['dataHisto']
+
     #The PDF for the GP bkg + signal DSCB
     GPpdf = RooGP.RooGP("mypdf", "CustomPDF",myy ,nSigGP, args.sigMass, gpConfig)
-    GPpdf.setTrainData(trainHisto, dataHisto)
+    #GPpdf.setTrainData(trainHisto, dataHisto)
 
     #get data from histogram to fit to
     data = ROOT.RooDataHist("dh", "dh", ROOT.RooArgList(myy), dataHisto)
@@ -97,7 +99,7 @@ def run(args, trainHisto, dataHisto, gpConfig):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default="../data/CouplingsTemplatesMoriond2017.root",help="Input root file with background histogram")
+    parser.add_argument("--input", default='../data/bkg_comb_Ioannis_h021.root',help="Input root file with background histogram")
     parser.add_argument("--outDir", help="Name tag to add to begining of matplotlib plot")
     parser.add_argument("--doSig","-s", action='store_true', help="Inject signal into background and make some signal plots")
     parser.add_argument("--tag", help="Name tag to add to begining of matplotlib plot")
@@ -111,34 +113,25 @@ if __name__ == '__main__':
     #priorMeanFile = ROOT.TFile('../data/KDEOutput.root')
     #priorMean = priorMeanFile.Get('myy_high')
 
+    args.sigMass = 85
+    args.lowRange = 60
+    args.hiRange = 120
+    stats = 330000
+
+    f = ROOT.TFile(args.input)
+
+    trainHisto = f.Get('hbkg_tmp_nominal_UU_incl')
+
     gpConfig = {
                 'lengthScale' : None
                 #,'lengthScale_min': 1
                 #,'lengthScale_max': 200
                 #,'amplitude'      : 693**2
                 ,'amplitude'      : None
-                ,'train_range'    : [105,160]
+                ,'train_range'    : [60,120]
+                ,'trainHisto'     : trainHisto
+                ,'dataHisto'      : trainHisto
     }
-    args.sigMass = 125
-    args.lowRange = 105
-    args.hiRange = 160
-    stats = 330000
-
-    f = ROOT.TFile(args.input)
-
-    #trainHisto = f.Get('myy_high')
-    #trainHisto.Rebin(30)
-    #trainHisto = f.Get('hmgg_c0')
-    #trainHisto = f.Get('m_yy_fine')
-    #trainHisto = f.Get('m_yy_c1_M17_ggH_0J_Cen_BkgTemplate') # plot 1,2 and 3
-    trainHisto = f.Get('m_yy_c0_Inclusive_BkgTemplate') # plot 1,2 and 3
-    #trainHisto = f.Get('m_yy_c23_M17_VHdilep_BkgTemplate') # plot 4
-    #Normalize the trainig histo to the correct number of expected background events
-    norm = 333000/ trainHisto.Integral() # plot 1
-    #norm = 1100000/ trainHisto.Integral() # plot 2
-    #norm = 10/ trainHisto.Integral() # plot 3 and 4
-    trainHisto.Scale(norm)
-
 
     #gpConfig['lengthScale'] = float(1000)
     #dataHisto = ROOT.TH1F('dataHisto', 'Background data', 27, 105, 159)
@@ -149,10 +142,10 @@ if __name__ == '__main__':
 
     dataHisto.FillRandom(trainHisto, stats)
 
-    priorMean = fitData(args, dataHisto, "pol1")
+    priorMean = fitData(args, trainHisto, "pol1")
     #print "Function returns:",priorMean
-    gpConfig['priorMean'] = priorMean
+    #gpConfig['priorMean'] = priorMean
 
 
     #run(args, trainHisto, dataHisto)
-    run(args, trainHisto, dataHisto, gpConfig)
+    run(args, gpConfig)

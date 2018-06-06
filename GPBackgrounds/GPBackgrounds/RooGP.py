@@ -99,6 +99,7 @@ def arrayToHisto(title, xmin, xmax, arr, errarr=None):
     """
     #print "Length of arr:", len(arr)
     hist = ROOT.TH1F(title, title, len(arr),xmin,xmax)
+    hist.SetDirectory(0)
     for nbin in range(1, len(arr)+1):
         hist.SetBinContent(nbin, arr[nbin-1]) # arr starts at 0 but histograms start at 1
         if False:
@@ -120,14 +121,15 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.nSig = nSig
         self.sigMass = sigMass
         self.trainResult = None
+        self.freezeNsig = False
 
         # Setup the prior Mean function if passed through config
         self.priorMean = None
         if 'priorMean' in gpConfig:
             print "Using prior Mean function from config."
             self.priorMean = gpConfig['priorMean']
-            if not self.priorMean.InheritsFrom(ROOT.TF1.Class()):
-                raise "Prior mean must be a TF1 for now..."
+            if not (self.priorMean.InheritsFrom(ROOT.TF1.Class()) or self.priorMean.InheritsFrom(ROOT.TH1.Class())  ):
+                raise "Currently the prior mean function must be a TF1 or TH1."
         # Set the training range. If none was given will default to the entire histogram.
         self.trainMin = None  # The range to consider when training the GP
         self.trainMax = None
@@ -139,7 +141,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.lengthScale = None
         self.amplitude = None
         self.k1 = RBF(60, (1, 200)) #squared exponential kernel
-        self.k2 = C((1e3)**2, (1e-10, 1e15))
+        self.k2 = C((1e3)**2, (1, 1e20))
 
         if 'lengthScale' in gpConfig:
             self.lengthScale = gpConfig['lengthScale']
@@ -162,9 +164,16 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.currentNSig = None
         self.currentSBHist = None
 
-        self.setTrainData(gpConfig['trainHisto'], gpConfig['trainHisto'])
+        self.setTrainData(gpConfig['trainHisto'], gpConfig['dataHisto'])
         ####  End of __init__()
 
+
+    def freezeNsig(self):
+        print "Freezing nSig Value"
+        self.freezeNsig = True
+
+    def thaw(self):
+        self.freezeNsig = False
 
     def setTrainData(self, trainHisto, dataHisto, binErrors=False):
         """Train a GP on a histogram to get hyperparamters.
@@ -177,7 +186,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         self.dataBinErrors = binErrors
         self.dataXmin = self.dataHisto.GetBinLowEdge(1)
         self.dataXmax = self.dataHisto.GetBinLowEdge(self.dataHisto.GetNbinsX())+self.dataHisto.GetBinWidth(1)
-        
+
         # Get the signal function
         self.sigFunction = ROOT.TF1("dscb", DSCB, self.dataXmin, self.dataXmax, 1)
         self.sigFunction.SetParameters(self.sigMass,0)
@@ -189,12 +198,14 @@ class RooGP(ROOT.TPyRooGPSigPdf):
             raise "Must set fit data before training data. Use setFitData( dataHisto, binErrors)"
 
         self.trainHisto = trainHisto.Clone()
+        self.trainHisto.SetDirectory(0) #ensure cleanup
         print "Scaling training histo to data:", self.dataHisto.Integral()/self.trainHisto.Integral()
         self.trainHisto.Scale(self.dataHisto.Integral()/self.trainHisto.Integral())
         self.trainHisto.Sumw2()
 
         X_t, Y_t, dy_t = histoToArray(self.trainHisto, self.trainMin, self.trainMax)
         binErr = Y_t
+        #binErr = np.sqrt(Y_t)
 
         #Get the prior mean shape. Subtract if from the training histo.
         if self.priorMean:
@@ -212,6 +223,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         y_pred, sigma = gp.predict(np.atleast_2d(X_t).T, return_std=True)
 
         self.trainResult = arrayToHisto("GPhisto", self.trainMin, self.trainMax, y_pred)
+        self.trainResult.SetDirectory(0)
         self.opt_kernel = gp.kernel_
         print "Optimized hyperparameters:"
         print gp.kernel_
@@ -237,6 +249,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         sig_func = self.sigFunction
         nSigScale = nSig*self.dataHisto.GetBinWidth(1) / self.sigNorm
         sigHisto = self.dataHisto.Clone("sigHisto")
+        sigHisto.SetDirectory(0)
         sigHisto.Reset()
         sigHisto.Add(sig_func, nSigScale)
         return sigHisto
@@ -253,6 +266,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         sig_func = self.sigFunction
         nSigScale = nSig*self.dataHisto.GetBinWidth(1) / self.sigNorm
         sigSubtractedHist = self.dataHisto.Clone("sigSubtractedHist")
+        sigSubtractedHist.SetDirectory(0)
         sigSubtractedHist.Add(sig_func, -1*nSigScale) #Subtrac the signal from the data
         #Get the Array corresponding to the subtracted histogram
         X, y_subtracted, errArr = histoToArray(sigSubtractedHist, self.trainMin, self.trainMax)
@@ -262,7 +276,9 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         y_pred, sigma = self.gp.predict(np.atleast_2d(X).T, return_std=True)
 
         gpHisto = arrayToHisto("GPhisto", self.trainMin, self.trainMax, y_pred)
+        gpHisto.SetDirectory(0)
         gpHistoSigSub = gpHisto.Clone('GPSigSub')
+        gpHistoSigSub.SetDirectory(0)
         gpHisto.Add(sig_func, nSigScale) #Add the signal back into the data
         return gpHisto, sigSubtractedHist,gpHistoSigSub
 
@@ -274,6 +290,12 @@ class RooGP(ROOT.TPyRooGPSigPdf):
         histogram. Then fit the GP to the remaining histo. Return the resulting
         signal histo + the GP fit of the background for the myy bin in question.
         """
+        if self.freezeNsig:
+            if self.currentNSig == None:
+                print "Freeze must be called after at least one evaluate call."
+                raise
+            return self.currentSBHist.GetBinContent(self.currentSBHist.FindBin(myy))
+
         if not (nSig == self.currentNSig): #If we have moved on to a different nSig, redo the GP
             self.currentNSig = nSig
             sig_func = self.sigFunction
@@ -281,6 +303,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
 
             #subtract prior mean and DSCB distribution from background
             sigSubtractedHist = self.dataHisto.Clone("sigSubtractedHist")
+            sigSubtractedHist.SetDirectory(0)
             if self.priorMean:
                 sigSubtractedHist.Add(self.priorMean, -1.0)
 
@@ -295,6 +318,7 @@ class RooGP(ROOT.TPyRooGPSigPdf):
 
             #gpHisto = arrayToHisto("GPhisto", self.dataXmin, self.dataXmax, y_pred)
             gpHisto = arrayToHisto("GPhisto", self.trainMin, self.trainMax, y_pred)
+            gpHisto.SetDirectory(0)
             gpHisto.Add(sig_func, nSigScale) #Add the signal back into the data
             if self.priorMean:
                 gpHisto.Add(self.priorMean,1.0)
